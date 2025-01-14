@@ -1,4 +1,3 @@
-from data_manager import DataManager
 from model_utils import generate, retry
 import typing_extensions as typing
 from google.genai import types
@@ -7,7 +6,11 @@ import itertools
 import json 
 import concurrent.futures
 
-data_manager = DataManager()
+## Use the following import for local "database"
+import data_manager_flat as data_manager
+
+## Use the following for firestore datastore as database
+# import data_manager_datastore as data_manager
 
 @retry(exceptions=(Exception), retries=4, delay=10, backoff=2)
 def discover_single_event(event_type, event_location):
@@ -85,12 +88,12 @@ def update_events(events):
 
 @retry(exceptions=(Exception), retries=4, delay=10, backoff=2)
 def dedup_events():
-    import data_manager_flat
+    
     functions = [
-        data_manager_flat.read_all, 
-        data_manager_flat.create, 
-        data_manager_flat.update, 
-        data_manager_flat.delete
+        data_manager.read_all, 
+        data_manager.create, 
+        data_manager.update, 
+        data_manager.delete
         ]
     prompt = DEDUPLICATE_EVENTS.format(table_name="events_of_interest")
     result = generate(prompt, custom_tools=functions, max_remote_calls=2)

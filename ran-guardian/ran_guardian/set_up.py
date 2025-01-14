@@ -1,7 +1,9 @@
-from data_manager import DataManager
+## Use the following import for local "database"
+# import data_manager_flat as data_manager
 
-# Initialize DataManager (creates the data directory)
-data_manager = DataManager()
+## Use the following for firestore datastore as database
+import data_manager_datastore as data_manager
+
 # --- Locations ---
 # Create some sample locations
 locations = [
