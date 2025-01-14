@@ -5,8 +5,8 @@ import base64
 import functools
 import time
 
-PROJECT_ID = 'ml-latest-allowlist'
-LOCATION = 'us-central1' #'#'europe-west1'
+PROJECT_ID = 'de1000-dev-mwc-ran-agent'
+LOCATION = 'us-central1' #'europe-west1'
 MODEL_NAME = "gemini-2.0-flash-exp" #'gemini-1.5-flash-002'
 
 # Only run this block for Vertex AI API

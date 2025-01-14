@@ -1,0 +1,6 @@
+UPDATE `de1000-dev-mwc-ran-agent.ran_guardian.inventory`
+SET GEO_COORDINATES = ST_GEOGPOINT(
+    CAST(TRIM(SPLIT(TRIM(GEO_KOORDINATEN, '[]'), ',')[SAFE_OFFSET(1)],"'") AS FLOAT64),  -- Longitude
+    CAST(TRIM(SPLIT(TRIM(GEO_KOORDINATEN, '[]'), ',')[SAFE_OFFSET(0)],"'") AS FLOAT64)   -- Latitude
+)
+WHERE GEO_KOORDINATEN IS NOT NULL;

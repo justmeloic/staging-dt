@@ -1,0 +1,406 @@
+[
+    {
+        "name": null,
+        "location": null,
+        "date": null,
+        "time": null,
+        "size": null,
+        "id": 1
+    },
+    {
+        "date": "2025-01-25",
+        "event_type": "Sports/Fitness",
+        "location": "Bonn (Specific Location not Provided)",
+        "name": "Armground",
+        "size": "Small",
+        "time": "1:00 PM",
+        "id": 2
+    },
+    {
+        "date": "2025-01-19",
+        "event_type": "Basketball",
+        "location": "Telekom Dome, Bonn",
+        "name": "Telekom Baskets Bonn vs Frankfurt SKYLINERS",
+        "size": "Medium",
+        "time": "3:00 PM",
+        "id": 3
+    },
+    {
+        "date": "Every Saturday",
+        "event_type": "Flea Market",
+        "location": "Bonn, Biskuithalle",
+        "name": "Flea market in the former Biskuithalle",
+        "size": "Medium",
+        "time": "8 AM - 2 PM",
+        "id": 4
+    },
+    {
+        "date": "Jan 18-19",
+        "event_type": "Concert",
+        "location": "Brotfabrik B\u00fchne Bonn",
+        "name": "TIEFGANG Part IV",
+        "size": "Small to Medium",
+        "time": "Not Specified",
+        "id": 5
+    },
+    {
+        "date": "Jan 17-18",
+        "event_type": "Concert",
+        "location": "Franzstra\u00dfe 44, Bonn",
+        "name": "Bollywood Winter Party Bonn",
+        "size": "Small",
+        "time": "Not Specified",
+        "id": 6
+    },
+    {
+        "date": "Jan 18",
+        "event_type": "Concert",
+        "location": "Harmonie, Bonn",
+        "name": "Marcus Schinkel Trio",
+        "size": "Small",
+        "time": "Not Specified",
+        "id": 7
+    },
+    {
+        "date": "Jan 18",
+        "event_type": "Concert",
+        "location": "Weberstra\u00dfe 41, 53113 Bonn",
+        "name": "R&B Express",
+        "size": "Small",
+        "time": "Not Specified",
+        "id": 8
+    },
+    {
+        "date": "Jan 16",
+        "event_type": "Concert",
+        "location": "Pantheon Theater, Bonn",
+        "name": "Dota Kehr",
+        "size": "Small to Medium",
+        "time": "Not Specified",
+        "id": 9
+    },
+    {
+        "date": "Jan 17",
+        "event_type": "Concert",
+        "location": "Dottendorfer Jazznacht, Bonn",
+        "name": "Jeff Cascaro",
+        "size": "Small to Medium",
+        "time": "Not Specified",
+        "id": 10
+    },
+    {
+        "date": "Jan 17",
+        "event_type": "Concert",
+        "location": "Kult 41, Bonn",
+        "name": "Parallelgesellschaft, Black Square, and Rost und Knochen Lucha Amada",
+        "size": "Small",
+        "time": "Not Specified",
+        "id": 11
+    },
+    {
+        "date": "Jan 17",
+        "event_type": "Concert",
+        "location": "KULT41",
+        "name": "100 Jahre Solidarit\u00e4t",
+        "size": "Small",
+        "time": "Not Specified",
+        "id": 12
+    },
+    {
+        "date": "Jan 19",
+        "event_type": "Concert",
+        "location": "Harmonie, Bonn",
+        "name": "Henrik Freischlader",
+        "size": "Small",
+        "time": "Not Specified",
+        "id": 13
+    },
+    {
+        "date": "Jan 19",
+        "event_type": "Concert",
+        "location": "Cologne",
+        "name": "Mobb Deep (Havoc, Big Noyd, DJ.L.E.S.) Live in Cologne",
+        "size": "Medium",
+        "time": "7:00 PM",
+        "id": 14
+    },
+    {
+        "date": "2025-01-18",
+        "event_type": "Concert",
+        "location": "Brotfabrik B\u00fchne Bonn",
+        "name": "TIEFGANG Part IV - NAMBAWAN Soundsystem x Dubactivist & MC Didjah",
+        "size": "Small",
+        "time": "TBD",
+        "id": 15
+    },
+    {
+        "date": "2025-01-19",
+        "event_type": "Concert",
+        "location": "Brotfabrik B\u00fchne Bonn",
+        "name": "TIEFGANG Part IV - NAMBAWAN Soundsystem x Dubactivist & MC Didjah",
+        "size": "Small",
+        "time": "TBD",
+        "id": 16
+    },
+    {
+        "date": "2025-01-18",
+        "event_type": "Concert",
+        "location": "Harmonie, Bonn",
+        "name": "Marcus Schinkel Trio",
+        "size": "Medium",
+        "time": "TBD",
+        "id": 17
+    },
+    {
+        "date": "2025-01-19",
+        "event_type": "Concert",
+        "location": "Harmonie, Bonn",
+        "name": "Henrik Freischlader",
+        "size": "Medium",
+        "time": "TBD",
+        "id": 18
+    },
+    {
+        "date": "2025-01-19",
+        "event_type": "Concert",
+        "location": "Cologne",
+        "name": "Mobb Deep (Havoc, Big Noyd, DJ.L.E.S.) Live in Cologne",
+        "size": "Medium",
+        "time": "7:00 PM",
+        "id": 19
+    },
+    {
+        "date": "January 19, 2025",
+        "event_type": "Basketball",
+        "location": "Telekom Dome, Bonn",
+        "name": "Telekom Baskets Bonn vs Frankfurt SKYLINERS",
+        "size": "Medium",
+        "time": "3:00 PM",
+        "id": 20
+    },
+    {
+        "date": "January 18",
+        "event_type": "Flea Market",
+        "location": "Bonn",
+        "name": "Flea market in the former Biskuithalle",
+        "size": "Medium",
+        "time": "8:00 - 14:00",
+        "id": 21
+    },
+    {
+        "date": "January 18",
+        "event_type": "Flea Market",
+        "location": "Parkplatz der Galopprennbahn Weidenpesch, K\u00f6ln",
+        "name": "Flohmarkt an der Pferderennbahn",
+        "size": "Large",
+        "time": "8:00 - 14:00",
+        "id": 22
+    },
+    {
+        "date": "January 18",
+        "event_type": "Flea Market",
+        "location": "Abenteuerhallen Kalk, K\u00f6ln",
+        "name": "M\u00e4delsflohmarkt in Kalk",
+        "size": "Medium",
+        "time": "12:00 - 17:00",
+        "id": 23
+    },
+    {
+        "date": "January 18",
+        "event_type": "Flea Market",
+        "location": "Friesenplatz, K\u00f6ln",
+        "name": "Gebrauchtradmarkt Innenstadt",
+        "size": "Medium",
+        "time": "8:00 - 16:00",
+        "id": 24
+    },
+    {
+        "date": "January 19",
+        "event_type": "Flea Market",
+        "location": "Wilhelmplatz, K\u00f6ln",
+        "name": "Tr\u00f6delmarkt in Nippes",
+        "size": "Medium",
+        "time": "11:00 - 18:00",
+        "id": 25
+    },
+    {
+        "date": "January 19",
+        "event_type": "Flea Market",
+        "location": "Globus, Max-Planck-Stra\u00dfe, K\u00f6ln",
+        "name": "Tr\u00f6delmarkt in Marsdorf",
+        "size": "Medium",
+        "time": "11:00 - 18:00",
+        "id": 26
+    },
+    {
+        "date": "January 19",
+        "event_type": "Flea Market",
+        "location": "Kart\u00e4userwall, K\u00f6ln",
+        "name": "Karnevalsflohmarkt Lotta/Torburg",
+        "size": "Medium",
+        "time": "12:00 - 16:00",
+        "id": 27
+    },
+    {
+        "date": "January 19",
+        "event_type": "Flea Market",
+        "location": "Engelshof, K\u00f6ln",
+        "name": "Karnevalsflohmarkt im Engelshof",
+        "size": "Medium",
+        "time": "time not specified",
+        "id": 28
+    },
+    {
+        "date": "Jan 18, 2025",
+        "event_type": "Flea Market",
+        "location": "Biskuithalle Bonn",
+        "name": "Flea market in the former Biskuithalle Bonn",
+        "size": "Medium",
+        "time": "8 AM - 2 PM",
+        "id": 29
+    },
+    {
+        "date": "Jan 18-19, 2025",
+        "event_type": "Handwork Fair",
+        "location": "Messezentrum Bad Salzuflen, Bad Salzuflen, Germany",
+        "name": "SINNESZAUBER",
+        "size": "Medium",
+        "time": "All day",
+        "id": 30
+    },
+    {
+        "date": "Jan 18-19, 2025",
+        "event_type": "Handwork Fair",
+        "location": "Nordbadenhalle Heddesheim, Germany",
+        "name": "Rhein-Neckar Art, Design and Creative Market",
+        "size": "Medium",
+        "time": "All day",
+        "id": 31
+    },
+    {
+        "date": "Jan 18-19, 2025",
+        "event_type": "Flea Market",
+        "location": "Buffalo Gap, Texas",
+        "name": "Buffalo Gap Flea Market",
+        "size": "Medium",
+        "time": "All day",
+        "id": 32
+    },
+    {
+        "date": "Jan 18-19, 2025",
+        "event_type": "Vintage Sale",
+        "location": "Bologna, Italy",
+        "name": "Vintage Kilo Sale",
+        "size": "Medium",
+        "time": "Multiple time slots",
+        "id": 33
+    },
+    {
+        "date": "2025-01-18",
+        "event_type": "Concert",
+        "location": "Harmonie, Bonn",
+        "name": "Marcus Schinkel Trio",
+        "size": "Small",
+        "time": "Not specified",
+        "id": 34
+    },
+    {
+        "date": "2025-01-18",
+        "event_type": "Concert",
+        "location": "Weberstra\u00dfe 41, 53113 Bonn, Germany",
+        "name": "R&B Express",
+        "size": "Small",
+        "time": "Not specified",
+        "id": 35
+    },
+    {
+        "date": "2025-01-18",
+        "event_type": "Concert",
+        "location": "Beethoven-Haus Bonn",
+        "name": "Pablo Barrag\u00e1n, Jiyoon Lee, Frank Dupree",
+        "size": "Small",
+        "time": "7:00 PM",
+        "id": 36
+    },
+    {
+        "date": "2025-01-18 to 2025-01-19",
+        "event_type": "Concert",
+        "location": "Brotfabrik B\u00fchne Bonn",
+        "name": "TIEFGANG Part IV - NAMBAWAN Soundsystem x Dubactivist & MC Didjah",
+        "size": "Medium",
+        "time": "Not specified",
+        "id": 37
+    },
+    {
+        "date": "2025-01-19",
+        "event_type": "Concert",
+        "location": "Harmonie, Bonn",
+        "name": "Henrik Freischlader",
+        "size": "Small",
+        "time": "Not specified",
+        "id": 38
+    },
+    {
+        "date": "2025-01-19",
+        "event_type": "Concert",
+        "location": "Beethoven-Haus Bonn",
+        "name": "Candlelight-Konzert",
+        "size": "Small",
+        "time": "5:30 PM",
+        "id": 39
+    },
+    {
+        "date": "2025-01-19",
+        "event_type": "Concert",
+        "location": "Beethoven-Haus Bonn",
+        "name": "Candlelight-Konzert",
+        "size": "Small",
+        "time": "7:30 PM",
+        "id": 40
+    },
+    {
+        "date": "2025-01-19",
+        "event_type": "Concert",
+        "location": "Cologne",
+        "name": "Mobb Deep (Havoc, Big Noyd, DJ.L.E.S.) Live in Cologne",
+        "size": "Medium",
+        "time": "7:00 PM",
+        "id": 41
+    },
+    {
+        "date": "January 18, 2025",
+        "event_type": "Sports Event",
+        "location": "Kieser Bonn-Innenstadt",
+        "name": "Tag der offenen T\u00fcr bei Kieser Bonn-Innenstadt",
+        "size": "Small",
+        "time": "9:00 AM",
+        "id": 42
+    },
+    {
+        "date": "January 18, 2025",
+        "event_type": "Sports Event",
+        "location": "Kieser Bonn-Bad Godesberg",
+        "name": "Tag der offenen T\u00fcr bei Kieser Bonn-Bad Godesberg",
+        "size": "Small",
+        "time": "10:00 AM",
+        "id": 43
+    },
+    {
+        "date": "January 19, 2025",
+        "event_type": "Sports Event",
+        "location": "Telekom Dome, Bonn",
+        "name": "Telekom Baskets Bonn vs Frankfurt SKYLINERS",
+        "size": "Medium",
+        "time": "3:00 PM",
+        "id": 44
+    },
+    {
+        "date": "January 19, 2025",
+        "event_type": "Sports Event",
+        "location": "Bonn",
+        "name": "Winterschmuddelparade 2024*2025",
+        "size": "Medium",
+        "time": "11:00 AM",
+        "id": 45
+    }
+]
