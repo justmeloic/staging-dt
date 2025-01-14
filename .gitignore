@@ -1,2 +1,4 @@
 *.xlsx
 .DS_Store
+*.html
+__pycache__
