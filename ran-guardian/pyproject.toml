@@ -9,6 +9,8 @@ readme = "README.md"
 python = "^3.11"
 google-genai = "^0.5.0"
 google-cloud-datastore = "^2.20.2"
+googlemaps = "^4.10.0"
+python-dotenv = "^1.0.1"
 
 
 [build-system]

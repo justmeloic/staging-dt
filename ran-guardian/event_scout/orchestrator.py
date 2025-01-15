@@ -5,6 +5,7 @@ from prompts import AGGREGATE_EVENTS, DISCOVER_EVENT, DEDUPLICATE_EVENTS
 import itertools
 import json 
 import concurrent.futures
+from gmap_utils import geocode_location
 
 ## Use the following import for local "database"
 import data_manager_flat as data_manager
@@ -83,6 +84,12 @@ def update_events(events):
         print(f"Events: {events}")
         raise e
     for event in events:
+        try:    
+            geo_coordinates = geocode_location(event["location"])
+            event["lat"] = geo_coordinates["lat"]
+            event["lng"] = geo_coordinates["lng"]
+        except Exception as e:
+            print(f"Could not geocode location {event['location']}: {e}")
         data_manager.create("events_of_interest", event)
 
 
