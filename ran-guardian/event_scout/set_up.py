@@ -7,9 +7,9 @@ import data_manager_datastore as data_manager
 # --- Locations ---
 # Create some sample locations
 locations = [
-    {"location": "Maastricht", "comment": "City"},
-    {"location": "Eindhoven", "comment": "City"},
-    {"location": "Zandvoort Aan Zee", "comment": "Beach"}
+    {"location": "Frankfurt", "comment": "City"},
+    {"location": "Mainz, Germany", "comment": "City"},
+    {"location": "Munich", "comment": "City"}
 ]
 for location in locations:
     data_manager.create("locations", location)

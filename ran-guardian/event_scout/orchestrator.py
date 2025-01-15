@@ -8,10 +8,10 @@ import concurrent.futures
 from gmap_utils import geocode_location
 
 ## Use the following import for local "database"
-import data_manager_flat as data_manager
+# import data_manager_flat as data_manager
 
 ## Use the following for firestore datastore as database
-# import data_manager_datastore as data_manager
+import data_manager_datastore as data_manager
 
 @retry(exceptions=(Exception), retries=4, delay=10, backoff=2)
 def discover_single_event(event_type, event_location):
@@ -103,7 +103,7 @@ def dedup_events():
         data_manager.delete
         ]
     prompt = DEDUPLICATE_EVENTS.format(table_name="events_of_interest")
-    result = generate(prompt, custom_tools=functions, max_remote_calls=2)
+    result = generate(prompt, custom_tools=functions, max_remote_calls=20)
     # result = generate(prompt,model="gemini-2.0-flash-thinking-exp-1219", custom_tools=functions)
     print(result)
 
@@ -113,5 +113,8 @@ def main():
     update_events(aggregated_events)
 
 if __name__ == "__main__":
+    print("### Looking for events and adding to database ###")
     main()
-    # dedup_events()
+    print("### Deduplicating events from database ###")
+    dedup_events()
+    print("### Done ###")

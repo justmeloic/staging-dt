@@ -1,6 +1,7 @@
 import google.cloud.datastore as datastore
 import datetime
 import inspect
+from typing import Union
 
 DATABASE_NAME = "ran-guardian-people-events"
 
@@ -31,7 +32,7 @@ def read_all(data_type: str) -> list[dict]:
     
     print(f"Gemini just used {inspect.currentframe().f_code.co_name} function")
 
-    results = list(query.fetch())
+    results = list(query.fetch(limit=10))
     
     # Add "id" to each item for consistency with your existing code
     for item in results:
@@ -39,7 +40,7 @@ def read_all(data_type: str) -> list[dict]:
 
     return results
 
-def read(data_type: str, id_key: str, id_value: int) -> dict | None:
+def read(data_type: str, id_key: str, id_value: int) -> Union[dict,None]:
     """Returns an item of the specified data type by its ID from Firestore."""
     client = get_client()
     
@@ -53,7 +54,7 @@ def read(data_type: str, id_key: str, id_value: int) -> dict | None:
     else:
         return None
 
-def update(data_type: str, id_key: str, id_value: int, updates: dict) -> dict | None:
+def update(data_type: str, id_key: str, id_value: int, updates: dict) -> Union[dict,None]:
     """Updates an item of the specified data type by its ID in Firestore."""
     client = get_client()
     

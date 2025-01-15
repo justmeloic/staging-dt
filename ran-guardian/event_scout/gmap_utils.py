@@ -11,5 +11,5 @@ def geocode_location(location: str) -> dict:
     result = gmaps.geocode(location)
     return result[0]["geometry"]["location"]
 
-print(geocode_location('1600 Amphitheatre Parkway, Mountain View, CA'))
+# print(geocode_location('1600 Amphitheatre Parkway, Mountain View, CA'))
 
