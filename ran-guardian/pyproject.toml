@@ -13,6 +13,7 @@ googlemaps = "^4.10.0"
 python-dotenv = "^1.0.1"
 pydantic = "^2.10.5"
 streamlit = "^1.41.1"
+streamlit-calendar = "^1.2.1"
 
 
 [build-system]

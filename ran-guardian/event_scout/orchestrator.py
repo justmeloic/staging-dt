@@ -8,10 +8,10 @@ import concurrent.futures
 from gmap_utils import geocode_location
 
 ## Use the following import for local "database"
-# import data_manager_flat as data_manager
+import data_manager_flat as data_manager
 
 ## Use the following for firestore datastore as database
-import data_manager_datastore as data_manager
+# import data_manager_datastore as data_manager
 
 @retry(exceptions=(Exception), retries=4, delay=10, backoff=2)
 def discover_single_event(event_type, event_location):

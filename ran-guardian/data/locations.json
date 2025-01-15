@@ -1,0 +1,17 @@
+[
+    {
+        "location": "Frankfurt",
+        "comment": "City",
+        "id": 1
+    },
+    {
+        "location": "Mainz, Germany",
+        "comment": "City",
+        "id": 2
+    },
+    {
+        "location": "Munich",
+        "comment": "City",
+        "id": 3
+    }
+]

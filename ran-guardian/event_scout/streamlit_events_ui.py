@@ -3,10 +3,10 @@ import pandas as pd
 import json
 from model_utils import generate
 ## USE below for local dataset management ##
-# import data_manager_flat as data_manager
+import data_manager_flat as data_manager
 
 ## USE below for datastore dataset management ##
-import data_manager_datastore as data_manager
+# import data_manager_datastore as data_manager
 
 @st.cache_data
 def fetch_data():

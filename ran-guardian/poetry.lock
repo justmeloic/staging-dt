@@ -262,8 +262,8 @@ googleapis-common-protos = ">=1.56.2,<2.0.dev0"
 grpcio = {version = ">=1.49.1,<2.0dev", optional = true, markers = "python_version >= \"3.11\" and extra == \"grpc\""}
 grpcio-status = {version = ">=1.49.1,<2.0.dev0", optional = true, markers = "python_version >= \"3.11\" and extra == \"grpc\""}
 proto-plus = [
-    {version = ">=1.25.0,<2.0.0dev", markers = "python_version >= \"3.13\""},
     {version = ">=1.22.3,<2.0.0dev", markers = "python_version < \"3.13\""},
+    {version = ">=1.25.0,<2.0.0dev", markers = "python_version >= \"3.13\""},
 ]
 protobuf = ">=3.19.5,<3.20.0 || >3.20.0,<3.20.1 || >3.20.1,<4.21.0 || >4.21.0,<4.21.1 || >4.21.1,<4.21.2 || >4.21.2,<4.21.3 || >4.21.3,<4.21.4 || >4.21.4,<4.21.5 || >4.21.5,<6.0.0.dev0"
 requests = ">=2.18.0,<3.0.0.dev0"
@@ -793,8 +793,8 @@ files = [
 
 [package.dependencies]
 numpy = [
-    {version = ">=1.26.0", markers = "python_version >= \"3.12\""},
     {version = ">=1.23.2", markers = "python_version == \"3.11\""},
+    {version = ">=1.26.0", markers = "python_version >= \"3.12\""},
 ]
 python-dateutil = ">=2.8.2"
 pytz = ">=2020.1"
@@ -1471,6 +1471,20 @@ watchdog = {version = ">=2.1.5,<7", markers = "platform_system != \"Darwin\""}
 snowflake = ["snowflake-connector-python (>=2.8.0)", "snowflake-snowpark-python[modin] (>=1.17.0)"]
 
 [[package]]
+name = "streamlit-calendar"
+version = "1.2.1"
+description = "📆 A Streamlit component to show callendar using FullCalendar (https://fullcalendar.io)"
+optional = false
+python-versions = "<4.0,>=3.8"
+files = [
+    {file = "streamlit_calendar-1.2.1-py3-none-any.whl", hash = "sha256:6a76799412872766ffb51c1a8e3ed58326593331caf373d8536d75560fdf1cd6"},
+    {file = "streamlit_calendar-1.2.1.tar.gz", hash = "sha256:3e23cf701ce49f95ac9846ce624d26dec0a5759f6e9992932579c4a433ea200d"},
+]
+
+[package.dependencies]
+streamlit = ">=1.12.0,<2.0.0"
+
+[[package]]
 name = "tenacity"
 version = "9.0.0"
 description = "Retry code until it succeeds"
@@ -1678,4 +1692,4 @@ files = [
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.11"
-content-hash = "8fe3aadbad51e3f151744383db678487930bf8751a461053747c722e8fb99ae4"
+content-hash = "2bc776ddec0ea705ade73dc3692bd77a1dfb1c3294a47cf60db7137e07edd336"
