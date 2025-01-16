@@ -15,10 +15,16 @@ poetry run python event_scout/set_up.py
 
 ```
 poetry install
-poetry run python event_scout/orchestrator.py 
+poetry run python ran_guardian/orchestrator.py 
 ```
 
-# Run Event UI
+# Run FastAPI and test endpoint
+First in one terminal start the server
 ```
-poetry run streamlit run event_scout/streamlit_events_ui.py 
+poetry run uvicorn app.main:app --reload
+``` 
+
+Then, open a new terminal, and run the pytest
+```
+poetry run pytest
 ```
