@@ -81,7 +81,7 @@ def write_events_to_db(location, events):
             event["lat"] = geo_coordinates["lat"]
             event["lng"] = geo_coordinates["lng"]
         except Exception as e:
-            print(f"Could not geocode location {event['location']}: {e}")
+            print(f"Could not geocode location {event['address']}: {e}")
         firestore_helper.save_event(location, event)
 
     # Update last_scanned field of the given location
@@ -106,7 +106,7 @@ def dedup_events():
 def main():
     event_types = firestore_helper.get_all_event_types()
     print(f"Total Event types: {len(event_types)}")
-    event_locations = firestore_helper.get_locations()
+    event_locations = firestore_helper.get_locations(priority="high")
     print(f"Total Locations: {len(event_locations)}")
 
     for event_location in event_locations:
