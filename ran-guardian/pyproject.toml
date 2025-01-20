@@ -14,6 +14,8 @@ python-dotenv = "^1.0.1"
 pydantic = "^2.10.5"
 streamlit = "^1.41.1"
 streamlit-calendar = "^1.2.1"
+google-cloud-firestore = "^2.20.0"
+pandas-gbq = "^0.26.1"
 
 
 [build-system]
