@@ -509,17 +509,6 @@
         "id": 51
     },
     {
-        "date": "2025-01-19",
-        "event_type": "Track and Field",
-        "location": "Sportzentrum Kalbach, Frankfurt",
-        "name": "Hessische Hallenmeisterschaften der Jugend U20/U16",
-        "size": "Medium",
-        "time": "TBA",
-        "lat": 50.18668,
-        "lng": 8.64984,
-        "id": 52
-    },
-    {
         "date": "2025-01-18",
         "event_type": "Luge",
         "location": "Winterberg, Germany (near Frankfurt)",
@@ -531,17 +520,6 @@
         "id": 55
     },
     {
-        "date": "2025-01-19",
-        "event_type": "Luge",
-        "location": "Winterberg, Germany (near Frankfurt)",
-        "name": "Luge European Championships",
-        "size": "Medium",
-        "time": "TBA",
-        "lat": 50.1109221,
-        "lng": 8.6821267,
-        "id": 56
-    },
-    {
         "date": "2025-01-18",
         "event_type": "Nordic Combined",
         "location": "Schonach, Germany (near Frankfurt)",
@@ -551,17 +529,6 @@
         "lat": 48.14244069999999,
         "lng": 8.202757199999999,
         "id": 57
-    },
-    {
-        "date": "2025-01-19",
-        "event_type": "Nordic Combined",
-        "location": "Schonach, Germany (near Frankfurt)",
-        "name": "FIS Nordic Combined World Cup",
-        "size": "Medium",
-        "time": "TBA",
-        "lat": 48.14244069999999,
-        "lng": 8.202757199999999,
-        "id": 58
     },
     {
         "date": "2025-01-25",
@@ -666,15 +633,6 @@
         "id": 68
     },
     {
-        "date": "2025-01-19",
-        "event_type": "Flea market",
-        "location": "University parking lot",
-        "name": "Flea market at university parking lot",
-        "size": "Medium",
-        "time": "Not specified",
-        "id": 69
-    },
-    {
         "date": "2025-01-18",
         "event_type": "Food market",
         "location": "Squares around Mainz Cathedral",
@@ -697,17 +655,6 @@
         "id": 71
     },
     {
-        "date": "2025-01-19",
-        "event_type": "Flea market",
-        "location": "Olympiapark parking area",
-        "name": "Flohmarkt Olympiapark",
-        "size": "Large",
-        "time": "07:00 - 16:00",
-        "lat": 48.1754268,
-        "lng": 11.5519879,
-        "id": 72
-    },
-    {
         "date": "2025-01-18",
         "event_type": "Flea market",
         "location": "Daglfing horse racing track area",
@@ -719,17 +666,6 @@
         "id": 73
     },
     {
-        "date": "2025-01-19",
-        "event_type": "Flea market",
-        "location": "Daglfing horse racing track area",
-        "name": "Flohmarkt Daglfing",
-        "size": "Medium",
-        "time": "06:00 - 16:00",
-        "lat": 48.1521085,
-        "lng": 11.658423,
-        "id": 74
-    },
-    {
         "date": "2025-01-18",
         "event_type": "Flea market",
         "location": "Freimann parking lot near Antikpalast",
@@ -739,17 +675,6 @@
         "lat": 48.201196,
         "lng": 11.6145677,
         "id": 75
-    },
-    {
-        "date": "2025-01-18",
-        "event_type": "Flea market",
-        "location": "Freimann",
-        "name": "Antikpalast (Indoor)",
-        "size": "Medium",
-        "time": "Time not specified",
-        "lat": 48.201196,
-        "lng": 11.6145677,
-        "id": 76
     },
     {
         "date": "2025-01-18",
