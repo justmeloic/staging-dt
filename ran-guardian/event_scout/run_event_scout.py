@@ -14,10 +14,8 @@ def discover_single_event(event_type, event_location):
                                    event_description=event_type["description"],
                                    location=event_location,
                                    time="this year 2025")
-    event_table = generate(prompt, include_search=True)  # Use retry wrapper
-    # print(event_table)
+    event_table = generate(prompt, include_search=True)
     events_formatted = format_events(event_type, event_location, event_table)
-    # print("Returning ", len(events_formatted), " events")
     return events_formatted
 
 
@@ -33,7 +31,6 @@ def discover_events_multithreaded(event_location, event_types):
             try:
                 events = future.result()
                 location_events.extend(events)
-                # print("Accumulated ", len(location_events))
             except Exception as e:
                 print(f"An error occurred during event discovery: {e}")
 
@@ -61,7 +58,6 @@ def format_events(event_type, event_location, event_table)->list[dict]:
     }
     prompt = AGGREGATE_EVENTS.format(raw_events=event_table)
     response = generate(prompt, response_schema=event_of_interest_response_schema)
-    # print(response)
 
     try:
         events_formatted = json.loads(response)
@@ -82,8 +78,9 @@ def write_events_to_db(location, events):
             event["lng"] = geo_coordinates["lng"]
         except Exception as e:
             print(f"Could not geocode location {event['address']}: {e}")
-        firestore_helper.save_event(location, event)
 
+    firestore_helper.save_events(location, events)
+    
     # Update last_scanned field of the given location
     firestore_helper.update_last_scanned(location)
     print(f"Successfully scouted location {location}")
@@ -109,11 +106,12 @@ def main():
     event_locations = firestore_helper.get_locations(priority="high")
     print(f"Total Locations: {len(event_locations)}")
 
+    event_locations = event_locations[10:]
+
     for event_location in event_locations:
         print(f"Scouting for events in: {event_location}")
         events = discover_events_multithreaded(event_location, event_types)
         write_events_to_db(event_location, events)
-        # break
 
 if __name__ == "__main__":
     print("### Looking for events and adding to database ###")

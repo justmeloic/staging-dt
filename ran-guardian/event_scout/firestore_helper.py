@@ -27,26 +27,30 @@ def update_last_scanned(location):
     doc_ref.set({u"last_scanned": datetime.datetime.now(tz=datetime.timezone.utc)}, merge=True)
 
 
-def save_event(location, event):
-    # Write event to the location collection
-    update_time, doc_ref = db.collection(location).add(event)
+def save_events(location, events):
+    for event in events:
+        # Write event to the location collection
+        _, doc_ref = db.collection(location).add(event)
 
-    # Increment total events stat
-    total_ref_stats = db.collection("locations").document("0_stats")
-    total_ref_stats.update({
-        "num_events": firestore.Increment(1)
-    })
+        event["event_id"] = doc_ref.id
 
-    # Increment location events stat
-    loc_ref_stats = db.collection("locations").document(location)
-    loc_ref_stats.update({
-        "num_events": firestore.Increment(1)
-    })
+        # Increment total events stat
+        total_ref_stats = db.collection("locations").document("0_stats")
+        total_ref_stats.update({
+            "num_events": firestore.Increment(1)
+        })
+
+        # Increment location events stat
+        loc_ref_stats = db.collection("locations").document(location)
+        loc_ref_stats.update({
+            "num_events": firestore.Increment(1)
+        })
 
     # Write event to BQ
-    df = pandas.DataFrame.from_dict(event, orient = "index").T
-    df["event_id"] = doc_ref.id
+    df = pandas.DataFrame(events)
     pandas_gbq.to_gbq(df, "ran_guardian.people_events", project_id=PROJECT_ID, if_exists='append')
+
+    update_last_scanned(location)
 
 
 # print(get_all_event_types())
@@ -65,4 +69,4 @@ def save_event(location, event):
 #     }""")
 # save_event("Aach Baden-Württemberg", event)
 
-update_last_scanned("Aach Baden-Württemberg")
+# update_last_scanned("Aach Baden-Württemberg")
