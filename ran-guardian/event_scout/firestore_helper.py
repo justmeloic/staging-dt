@@ -15,7 +15,7 @@ def get_all_event_types():
     return event_types
 
 def get_locations(priority = ""):
-    if priority == "high":
+    if priority:
         docs = db.collection('locations').where(filter=FieldFilter("priority", "==", priority)).stream()
     else:
         docs = db.collection('locations').stream()
@@ -52,9 +52,15 @@ def save_events(location, events):
 
     update_last_scanned(location)
 
+def get_events_by_location(location):
+    events = db.collection(location).stream()
+    events_list = [event.to_dict() for event in events]
+    return events_list
+
+# get_events_by_location(location="Berlin Berlin")
 
 # print(get_all_event_types())
-# locations = get_locations(priority="high")
+# locations = get_locations(priority="medium")
 # print(locations)
 
 # event = json.loads("""{
