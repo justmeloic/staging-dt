@@ -1,6 +1,6 @@
 from google.cloud import firestore
 from google.cloud.firestore_v1.base_query import FieldFilter
-import json
+from google.cloud import bigquery
 import pandas
 import pandas_gbq
 import datetime
@@ -25,6 +25,9 @@ def get_locations(priority = ""):
 def update_last_scanned(location):
     doc_ref = db.collection("locations").document(location)
     doc_ref.set({u"last_scanned": datetime.datetime.now(tz=datetime.timezone.utc)}, merge=True)
+
+def get_global_stats():
+    return db.collection("locations").document("0_stats").get().to_dict()
 
 
 def save_events(location, events):
@@ -57,6 +60,28 @@ def get_events_by_location(location):
     events_list = [event.to_dict() for event in events]
     return events_list
 
+QUERY = """
+    SELECT
+    ST_X(GEO_COORDINATES) AS longitude,
+    ST_Y(GEO_COORDINATES) AS latitude,
+    MS_MSRBS_HERSTELLER
+    FROM
+    `de1000-dev-mwc-ran-agent.ran_guardian.inventory`
+    WHERE
+    ST_DISTANCE(
+        GEO_COORDINATES, -- Replace longitude and latitude with your table's column names
+        ST_GEOGPOINT({lng}, {lat}) -- Replace with your target longitude and latitude (e.g., Chicago)
+    ) <= {radius}; -- 5000 meters = 5 kilometers
+    """
+
+def get_nodes_within_radius(lng, lat, radius = 4000):
+    client = bigquery.Client(project=PROJECT_ID, location='europe-west3')
+    query_job = client.query(QUERY.format(lng=lng, lat=lat, radius=radius))  # API request
+    df = query_job.to_dataframe()
+    return df
+
+# print(get_nodes_within_radius(13.4049, 52.5200, 4000))
+# print(get_global_stats())
 # get_events_by_location(location="Berlin Berlin")
 
 # print(get_all_event_types())
