@@ -55,7 +55,7 @@ def save_events(location, events):
 
     # Write event to BQ
     df = pandas.DataFrame(events)
-    pandas_gbq.to_gbq(df, "ran_guardian.people_events", project_id=PROJECT_ID, if_exists='append')
+    pandas_gbq.to_gbq(df, "events_db_de.people_events", project_id=PROJECT_ID, if_exists='append')
 
     update_last_scanned(location)
 

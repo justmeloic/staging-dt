@@ -106,7 +106,7 @@ def main():
     event_locations = firestore_helper.get_locations(priority="high")
     print(f"Total Locations: {len(event_locations)}")
 
-    event_locations = event_locations[10:]
+    # event_locations = event_locations[10:]
 
     for event_location in event_locations:
         print(f"Scouting for events in: {event_location}")

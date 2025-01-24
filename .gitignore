@@ -4,3 +4,4 @@
 __pycache__
 ran-guardian/data/
 .env
+*key.json
