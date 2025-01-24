@@ -4,7 +4,6 @@ import gmap_utils
 import folium
 from streamlit_folium import st_folium
 import firestore_helper
-import branca
 from branca.element import Template, MacroElement
 
 st.set_page_config(page_title="RAN Guardian Events Explorer", layout="wide")

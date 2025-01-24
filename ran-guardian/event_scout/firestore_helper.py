@@ -4,10 +4,14 @@ from google.cloud import bigquery
 import pandas
 import pandas_gbq
 import datetime
+import os
+from dotenv import load_dotenv
 
-PROJECT_ID = 'de1000-dev-mwc-ran-agent'
+load_dotenv()
+PROJECT_ID = os.getenv("PROJECT_ID")
+FIREBASE_DB_NAME = os.getenv("FIREBASE_DB_NAME")
 
-db = firestore.Client(project=PROJECT_ID, database="ran-guardian-event-scout")
+db = firestore.Client(project=PROJECT_ID, database=FIREBASE_DB_NAME)
 
 def get_all_event_types():
     docs = db.collection('event_types').stream()
