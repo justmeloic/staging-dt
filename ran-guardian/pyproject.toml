@@ -4,6 +4,7 @@ version = "0.1.0"
 description = ""
 authors = ["Amit Verma <amiacs@gmail.com>"]
 readme = "README.md"
+package-mode = false
 
 [tool.poetry.dependencies]
 python = "^3.11"
@@ -21,6 +22,8 @@ sse-starlette = "^2.2.1"
 folium = "^0.19.4"
 streamlit-folium = "^0.24.0"
 google-cloud-bigquery-storage = "^2.27.0"
+uvicorn = "^0.34.0"
+fastapi = "^0.115.7"
 
 
 [tool.poetry.group.dev.dependencies]

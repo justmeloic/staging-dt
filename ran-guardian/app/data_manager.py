@@ -1,4 +1,5 @@
 from datetime import datetime
+import os
 from typing import List, Dict, Optional
 import numpy as np
 
@@ -111,6 +112,9 @@ class DataManager:
         max_num_event: Optional[int] = 3,
     ) -> List[Event]:
 
+        if os.environ.get("ENV") == "DEV":
+            return mock_data.generate_events(5)
+
         if location:
             return self.get_events_by_location(location, start_time, end_time)
 
@@ -199,6 +203,9 @@ class DataManager:
         self, location: Location, radius: int = 300
     ) -> List[NodeData]:
         """Get node IDs near a specific location"""
+
+        if os.environ.get("ENV") == "DEV":
+            return mock_data.generate_nodes(3)[0]
 
         QUERY = """
         SELECT
