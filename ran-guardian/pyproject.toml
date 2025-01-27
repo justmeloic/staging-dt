@@ -16,9 +16,16 @@ streamlit = "^1.41.1"
 streamlit-calendar = "^1.2.1"
 google-cloud-firestore = "^2.20.0"
 pandas-gbq = "^0.26.1"
+google-cloud-storage = "^2.19.0"
+sse-starlette = "^2.2.1"
 folium = "^0.19.4"
 streamlit-folium = "^0.24.0"
+google-cloud-bigquery-storage = "^2.27.0"
 
+
+[tool.poetry.group.dev.dependencies]
+jupyter = "^1.1.1"
+lab = "^8.3"
 
 [build-system]
 requires = ["poetry-core"]
