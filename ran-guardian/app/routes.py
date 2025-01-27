@@ -11,7 +11,7 @@ from app.models import IssueStatus, Issue
 from app.agent import Agent
 from app.data_manager import DataManager
 from app.network_manager import NetworkConfigManager
-from app.notification_manager import NotificationManager
+
 
 load_dotenv()
 PROJECT_ID = os.getenv("PROJECT_ID")
@@ -27,10 +27,6 @@ async def get_data_manager():
 
 async def get_network_config_manager():
     return NetworkConfigManager()  # Or use dependency injection
-
-
-async def get_notification_manager():
-    return NotificationManager()  # Or use dependency injection
 
 
 @router.get("/")

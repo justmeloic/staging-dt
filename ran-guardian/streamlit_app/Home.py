@@ -9,14 +9,19 @@ from queue import Queue
 
 def parse_line(line: str):
     line_str = line.decode("utf-8")
+
     if line_str.startswith("data: "):
         try:
             data = json.loads(line_str[5:])
-            print(data["message"])
-            return data["message"]
-        except Exception:
-            print(f"Error parsing line: {line_str}")
-            return None           
+            if "message" in data.keys():
+                print(data["message"])
+                return data["message"]
+            else:
+                print("Data message did not contain message key")
+                return None
+        except Exception as e:
+            print(f"Error parsing line: {line_str} ({str(e)})")
+            return None
     return None
 
 
@@ -43,6 +48,7 @@ def display_stream(url, max_lines=10):
                     n_line += 1
     except requests.exceptions.RequestException as e:
         print(f"Error during streaming: {e}")
+
 
 # Streamlit App
 st.title("RAN Guardian Agent log")

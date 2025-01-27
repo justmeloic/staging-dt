@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta, timezone
 import random
+from typing import List, Tuple
 import uuid
 from app.models import Event, PerformanceData, NodeData, Alarm, Location
 
@@ -19,7 +20,7 @@ def generate_random_timestamp(max_days_ago=7):
     return datetime.now(timezone.utc) - timedelta(days=days_ago)
 
 
-def generate_nodes(num_nodes=5):
+def generate_nodes(num_nodes=5) -> Tuple[List[NodeData], List[str]]:
     """Generate mock node data"""
     nodes = []
     node_ids = [f"node_{i}" for i in range(1, num_nodes + 1)]

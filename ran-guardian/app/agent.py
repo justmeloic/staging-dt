@@ -6,7 +6,6 @@ from dataclasses import dataclass
 from app.models import IssueStatus, Event, PerformanceData, Issue, ValidationResult
 from app.llm_helper import LLMHelper, Risk
 from app.data_manager import DataManager
-from app.notification_manager import NotificationManager
 from app.network_manager import NetworkConfigManager
 from collections import deque
 import json
@@ -55,13 +54,11 @@ class Agent:
         self,
         data_manager: DataManager,
         network_manager: NetworkConfigManager,
-        notification_manager: NotificationManager,
         llm_helper: Optional[LLMHelper] = None,
         config: Optional[AgentConfig] = None,
     ):
         self.data_manager = data_manager
         self.network_manager = network_manager
-        self.notification_manager = notification_manager
         self.llm_helper = llm_helper or LLMHelper()
         self.config = config or AgentConfig()
         self.last_run = datetime.now()
@@ -77,7 +74,6 @@ class Agent:
                 self.logger.error(f"Error in agent loop: {e}", exc_info=True)
             await asyncio.sleep(self.config.run_interval * 60)
 
-
     async def _process_cycle(self):
         """Run a single processing cycle"""
         self.last_run = datetime.now()
@@ -91,14 +87,37 @@ class Agent:
         await self.logger.log("info", "Finished agent processing cycle")
 
     async def _get_events(self) -> List[Event]:
+        """Retrieves upcoming events within the lookforward period.
+
+        Returns:
+            A list of Event objects representing upcoming events.
+        """
         start_time = datetime.now()
         end_time = start_time + timedelta(hours=self.config.lookforward_period)
         return await self.data_manager.get_events(start_time, end_time)
 
     async def _process_event(self, event: Event):
+        """Processes a single event and creates an issue if necessary.
+
+        This method orchestrates the processing of an event, including:
+        1. Identifying nearby nodes to the event.
+        2. Retrieving performance and alarm data for each node.
+        3. Assessing the risk posed by the event to each node using the LLMHelper.
+        4. Creating an issue if any node is deemed at risk.
+        5. Handling the created issue (automatic resolution or escalation).
+
+        Args:
+            event: The Event object to process.
+
+        Returns:
+            False. This function's return value is not used.
+        """
         # event driven flow
         nodes = await self.data_manager.get_nearby_nodes(event.location)
         ls_validation_summary = []
+
+        # [vdantas] potentially data could be fetched from each node in parallel to speed up the process
+        # ... currently execution is mostly sequential.
         for node in nodes:
             await self.logger.log(
                 "info", f"Processing event {event.event_id} for node {node.node_id}"
@@ -107,21 +126,32 @@ class Agent:
             performance_data = await self.data_manager.get_performance_data(
                 node.node_id
             )
-            await self.logger.log("debug", f"The performance data for node {node.node_id} is {performance_data}")
+            await self.logger.log(
+                "debug",
+                f"The performance data for node {node.node_id} is {performance_data}",
+            )
 
             alarm_data = await self.data_manager.get_alarms(node.node_id)
-            await self.logger.log("debug", f"The performance data for node {node.node_id} is {performance_data}")
+            await self.logger.log(
+                "debug",
+                f"The performance data for node {node.node_id} is {performance_data}",
+            )
 
             summary = await self.llm_helper.assess_node_event_risk(
                 event, performance_data, alarm_data, node
             )
-            await self.logger.log("info", f"Here is a summary of the data collected for node {node.node_id}: {summary}")
+            await self.logger.log(
+                "info",
+                f"Here is a summary of the data collected for node {node.node_id}: {summary}",
+            )
 
             ls_validation_summary.append(summary)
 
         if any(summary.is_valid for summary in ls_validation_summary):
             issue_id = await self._create_issue(event, ls_validation_summary)
-            await self.logger.log("info", f"Created issue {issue_id} for event {event.event_id}")
+            await self.logger.log(
+                "info", f"Created issue {issue_id} for event {event.event_id}"
+            )
 
             if not issue_id:
                 return
@@ -133,7 +163,21 @@ class Agent:
     async def _create_issue(
         self, event: Event, validation_summaries: List[ValidationResult] = []
     ) -> str | None:
-        """Create an issue from event and validation results"""
+        """Creates an issue based on valid validation summaries.
+
+        This method creates a new issue if any of the provided validation summaries
+        are marked as valid (is_valid=True).  It extracts relevant information
+        from the event and the valid summaries to populate the issue details.
+
+        Args:
+            event: The event that triggered the validation and potential issue creation.
+            validation_summaries: A list of ValidationResult objects, each representing
+                the outcome of validation for a specific node.
+
+        Returns:
+            The Firestore document ID of the created issue if at least one validation summary is valid.
+            Returns None if no valid summaries are provided, meaning no issue was created.
+        """
         valid_summaries = [s for s in validation_summaries if s.is_valid]
         if not valid_summaries:
             return None
@@ -149,6 +193,22 @@ class Agent:
         return await self.data_manager.create_issue(issue)
 
     async def _handle_issue(self, issue_id: str):
+        """Handles the resolution workflow for a given issue.
+
+        This method determines whether an issue requires human intervention or can be
+        automatically resolved.  It orchestrates the following steps:
+
+        1. Retrieves the issue details from the data manager.
+        2. Evaluates the severity of the issue using the LLM helper.
+        3. Requests a network configuration proposal from the network manager.
+        4. If a configuration proposal is generated:
+            a. If human intervention is required, it updates the issue status to pending approval.
+            b. If automatic resolution is possible, it attempts to apply the configuration and updates the issue status accordingly.
+        5. If no configuration proposal is generated, it escalates the issue.
+
+        Args:
+            issue_id: The ID of the issue to handle.
+        """
         """Handle issue resolution flow"""
         await self.logger.log("info", f"Handling issue {issue_id}", issue_id=issue_id)
 
@@ -179,7 +239,6 @@ class Agent:
 
     async def _handle_human_intervention(self, issue_id: str):
         """Handle issues requiring human intervention"""
-        await self.notification_manager.send_notification(issue_id)
         await self._update_status(
             issue_id,
             IssueStatus.PENDING_APPROVAL,
