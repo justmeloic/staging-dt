@@ -33,6 +33,11 @@ def update_last_scanned(location):
 def get_global_stats():
     return db.collection("locations").document("0_stats").get().to_dict()
 
+def get_num_scanned_locations(num_days = 90):
+    num_days_ago = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=num_days)
+    docs = db.collection("locations").where("last_scanned", ">=", num_days_ago).stream()
+    locations = [doc.id for doc in docs]
+    return len(locations)
 
 def save_events(location, events):
     for event in events:
@@ -84,6 +89,7 @@ def get_nodes_within_radius(lng, lat, radius = 4000):
     df = query_job.to_dataframe()
     return df
 
+# print(get_num_scanned_locations())
 # print(get_nodes_within_radius(13.4049, 52.5200, 4000))
 # print(get_global_stats())
 # get_events_by_location(location="Berlin Berlin")
