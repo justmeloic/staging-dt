@@ -6,6 +6,7 @@ import json
 import concurrent.futures
 from gmap_utils import geocode_location
 import firestore_helper
+from tqdm import tqdm
 
 @retry(exceptions=(Exception), retries=4, delay=10, backoff=2)
 def discover_single_event(event_type, event_location):
@@ -103,15 +104,22 @@ def dedup_events():
 def main():
     event_types = firestore_helper.get_all_event_types()
     print(f"Total Event types: {len(event_types)}")
-    event_locations = firestore_helper.get_locations(priority="high")
+
+    event_locations = firestore_helper.get_unscanned_locations()
     print(f"Total Locations: {len(event_locations)}")
 
-    # event_locations = event_locations[10:]
+    # for event_location in event_locations:
+    #     print(f"Scouting for events in: {event_location}")
+    #     events = discover_events_multithreaded(event_location, event_types)
+    #     write_events_to_db(event_location, events)
 
-    for event_location in event_locations:
-        print(f"Scouting for events in: {event_location}")
-        events = discover_events_multithreaded(event_location, event_types)
-        write_events_to_db(event_location, events)
+    with tqdm(total=len(event_locations), desc="Scouting Locations", unit="location", bar_format="{l_bar}{bar} {n_fmt}/{total_fmt} | ETA: {remaining} | Elapsed: {elapsed} | {rate_fmt}") as pbar:
+        for event_location in event_locations:
+            # print(f"Scouting for events in: {event_location}")  # No longer needed, tqdm handles output
+            events = discover_events_multithreaded(event_location, event_types)
+            write_events_to_db(event_location, events)
+            pbar.update(1)  # Increment the progress bar by 1 for each location
+            pbar.set_postfix({"Location": event_location})
 
 if __name__ == "__main__":
     print("### Looking for events and adding to database ###")
