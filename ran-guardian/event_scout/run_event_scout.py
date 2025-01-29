@@ -116,6 +116,6 @@ def main():
             pbar.set_postfix({"Location": event_location})
 
 if __name__ == "__main__":
-    print("### Looking for events and adding to database ###")
+    print("### Event Scout Started: Looking for events and adding to database ###")
     main()
     print("### Event Scout Completed ###")
