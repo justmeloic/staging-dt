@@ -108,14 +108,8 @@ def main():
     event_locations = firestore_helper.get_unscanned_locations()
     print(f"Total Locations: {len(event_locations)}")
 
-    # for event_location in event_locations:
-    #     print(f"Scouting for events in: {event_location}")
-    #     events = discover_events_multithreaded(event_location, event_types)
-    #     write_events_to_db(event_location, events)
-
     with tqdm(total=len(event_locations), desc="Scouting Locations", unit="location", bar_format="{l_bar}{bar} {n_fmt}/{total_fmt} | ETA: {remaining} | Elapsed: {elapsed} | {rate_fmt}") as pbar:
         for event_location in event_locations:
-            # print(f"Scouting for events in: {event_location}")  # No longer needed, tqdm handles output
             events = discover_events_multithreaded(event_location, event_types)
             write_events_to_db(event_location, events)
             pbar.update(1)  # Increment the progress bar by 1 for each location
