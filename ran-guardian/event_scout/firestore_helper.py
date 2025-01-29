@@ -35,7 +35,7 @@ def get_global_stats():
 
 def get_num_scanned_locations(num_days = 90):
     num_days_ago = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=num_days)
-    docs = db.collection("locations").where("last_scanned", ">=", num_days_ago).stream()
+    docs = db.collection("locations").where(filter=FieldFilter("last_scanned", ">=", num_days_ago)).stream()
     locations = [doc.id for doc in docs]
     return len(locations)
 
