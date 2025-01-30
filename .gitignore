@@ -3,5 +3,9 @@
 *.html
 __pycache__
 ran-guardian/data/
+*/mock_data/
+*.env
+*.ipynb_checkpoints/
+*.ipynb
 .env
 *key.json
