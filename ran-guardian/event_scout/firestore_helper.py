@@ -66,14 +66,32 @@ def save_events(location, events):
 
     # Write event to BQ
     df = pandas.DataFrame(events)
-    pandas_gbq.to_gbq(df, "events_db_de.people_events", project_id=PROJECT_ID, if_exists='append')
+    pandas_gbq.to_gbq(df, "events_db_de.people_events", project_id=PROJECT_ID, if_exists='append', location='europe-west3')
 
     update_last_scanned(location)
 
 def get_events_by_location(location):
     events = db.collection(location).stream()
-    events_list = [event.to_dict() for event in events]
+    events_list = [{**event.to_dict(), 'id': event.id} for event in events]
     return events_list
+
+def delete_event_by_id(event_location: str, event_id: str) -> None:
+    """
+    Delete an event with the specified event_id for the specified event_location.
+    """
+    db.collection(event_location).document(event_id).delete()
+
+    # Decrement location events stat
+    loc_ref_stats = db.collection("locations").document(event_location)
+    loc_ref_stats.update({
+        "num_events": firestore.Increment(-1)
+    })
+
+    # Decrement total events stat
+    total_ref_stats = db.collection("locations").document("0_stats")
+    total_ref_stats.update({
+        "num_events": firestore.Increment(-1)
+    })
 
 QUERY = """
     SELECT
@@ -95,26 +113,4 @@ def get_nodes_within_radius(lng, lat, radius = 4000):
     df = query_job.to_dataframe()
     return df
 
-# print(get_unscanned_locations()[:10])
-# print(get_num_scanned_locations())
 # print(get_nodes_within_radius(13.4049, 52.5200, 4000))
-# print(get_global_stats())
-# get_events_by_location(location="Berlin Berlin")
-
-# print(get_all_event_types())
-# locations = get_locations(priority="medium")
-# print(locations)
-
-# event = json.loads("""{
-#         "address": "Mannheim, Germany",
-#         "date": "2025-06-07 to 2025-06-09",
-#         "end_time": "N/A",
-#         "event_type": "Art, Technology, Culture Festival",
-#         "name": "APEX Mannheim",
-#         "size": "L",
-#         "start_time":"N/A",
-#         "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUBnsYtPBU-Bc7Xmbbk1-gxUDYlvH99caaXeaw-40fT1QbtIb17JYGO_7j32zsVTf9yglZl8ySAAfGkqCuWMa9R8bw_dGalv3OWtqcBnQDDh9Hcl1qExdcleBPyjtJUjJl2XvKe1AG9mBPbtE--ECGJsgZuuwwLZBHisKma376MAOJXzXRlVn8hX"
-#     }""")
-# save_event("Aach Baden-Württemberg", event)
-
-# update_last_scanned("Aach Baden-Württemberg")

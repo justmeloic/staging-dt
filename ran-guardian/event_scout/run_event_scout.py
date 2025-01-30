@@ -8,6 +8,48 @@ from gmap_utils import geocode_location
 import firestore_helper
 from tqdm import tqdm
 
+duplicate_events_response_schema = {
+  "type": "array",
+  "items": {
+    "type": "object",
+    "properties": {
+      "duplicate_ids": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "Array of IDs representing duplicate events"
+      },
+      "name": {
+        "type": "string",
+        "description": "Name of the event"
+      },
+      "address": {
+        "type": "string",
+        "description": "Address of the event venue"
+      },
+      "start_date": {
+        "type": "string",
+        "format": "date",
+        "description": "Start date of the event in YYYY-MM-DD format"
+      },
+      "end_date": {
+        "type": "string",
+        "format": "date",
+        "description": "End date of the event in YYYY-MM-DD format"
+      }
+    },
+    "required": [
+      "duplicate_ids",
+      "name",
+      "address",
+      "start_date",
+      "end_date"
+    ]
+  },
+  "description": "Array of duplicate event objects"
+}
+
 @retry(exceptions=(Exception), retries=4, delay=10, backoff=2)
 def discover_single_event(event_type, event_location):
     """Generates event details for a single combination of event type and location."""
@@ -88,18 +130,34 @@ def write_events_to_db(location, events):
 
 
 @retry(exceptions=(Exception), retries=4, delay=10, backoff=2)
-def dedup_events():
+def dedup_events_per_location(event_location):
+    events = firestore_helper.get_events_by_location(event_location)
+
+    prompt = DEDUPLICATE_EVENTS.format(events=str(events))
+    response = generate(prompt, response_schema=duplicate_events_response_schema)
+
+    try:
+        duplicate_events = json.loads(response)
+        print(f"Retrieved {len(duplicate_events)} duplicate events in location {event_location}")
+    except Exception as e:
+        print(f"Could not parse the events: {e}")
+        print(f"Events: {response}")
+        raise e
     
-    functions = [
-        data_manager.read_all, 
-        data_manager.create, 
-        data_manager.update, 
-        data_manager.delete
-        ]
-    prompt = DEDUPLICATE_EVENTS.format(table_name="events_of_interest")
-    result = generate(prompt, custom_tools=functions, max_remote_calls=20)
-    # result = generate(prompt,model="gemini-2.0-flash-thinking-exp-1219", custom_tools=functions)
-    print(result)
+    deleted_events = 0
+    for event in duplicate_events:
+        print(f'Deleting duplicate entries for event name {event["name"]} start date {event["start_date"]} end date {event["end_date"]} address {event["address"]}')
+        
+        if(len(event["duplicate_ids"]) < 2):
+            print(f"Warning: Less than two duplicate_id encountered")
+            continue
+        
+        for duplicate_id in event["duplicate_ids"][1:]:
+            print(f"Deleting duplicate id {duplicate_id}")
+            firestore_helper.delete_event_by_id(event_location, duplicate_id)
+            deleted_events = deleted_events + 1
+
+    print("Deleted events", deleted_events)
 
 def main():
     event_types = firestore_helper.get_all_event_types()
@@ -110,8 +168,13 @@ def main():
 
     with tqdm(total=len(event_locations), desc="Scouting Locations", unit="location", bar_format="{l_bar}{bar} {n_fmt}/{total_fmt} | ETA: {remaining} | Elapsed: {elapsed} | {rate_fmt}") as pbar:
         for event_location in event_locations:
+            pbar.set_description(f"Scouting: {event_location}")
             events = discover_events_multithreaded(event_location, event_types)
             write_events_to_db(event_location, events)
+
+            # Dedup events after writing to database
+            dedup_events_per_location("Aach Baden-Württemberg")
+
             pbar.update(1)  # Increment the progress bar by 1 for each location
             pbar.set_postfix({"Location": event_location})
 
