@@ -173,7 +173,7 @@ def main():
             write_events_to_db(event_location, events)
 
             # Dedup events after writing to database
-            dedup_events_per_location("Aach Baden-Württemberg")
+            dedup_events_per_location(event_location)
 
             pbar.update(1)  # Increment the progress bar by 1 for each location
             pbar.set_postfix({"Location": event_location})
