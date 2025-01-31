@@ -1,3 +1,3 @@
 from prompts.discover import DISCOVER_EVENT
 from prompts.aggregate_events import AGGREGATE_EVENTS
-from prompts.deduplicate_events import DEDUPLICATE_EVENTS
+from prompts.dedup import DEDUPLICATE_EVENTS

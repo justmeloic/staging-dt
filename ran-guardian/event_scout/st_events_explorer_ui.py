@@ -13,7 +13,7 @@ num_events = str(stats["num_events"])
 num_locations = str(stats["num_locations"])
 st.sidebar.header(f":primary[AI Discovered Events:] :primary-background[{num_events}]")
 st.sidebar.header(f":primary[New Events (last 24 hours):] :primary-background[656]")
-st.sidebar.header(f":primary[Locations Scanned:] :primary-background[{num_locations}]")
+st.sidebar.header(f":primary[Locations Scanned:] :primary-background[{firestore_helper.get_num_scanned_locations()}/{num_locations}]")
 st.sidebar.text("")
 
 show_locations = st.sidebar.checkbox("Show DT Site Locations")
@@ -34,8 +34,9 @@ print(geo_coordinates)
 center_lat = geo_coordinates["lat"]
 center_lng = geo_coordinates["lng"]
 
-df = pd.DataFrame(events).assign(size_num=lambda x: x["size"].map({"S": 100, "M": 500, "L": 750, "XL": 1000}))
+df = pd.DataFrame(events).assign(size_num=lambda x: x["size"].map({"S": 100, "M": 500, "L": 750, "XL": 1000})).fillna(100)
 df = df.dropna(subset=['lat', 'lng'])
+print("After dropping empty lat lng: ", len(df))
 
 df["start_date_formatted"] = pd.to_datetime(df["start_date"], errors='coerce')
 today = pd.to_datetime('today').normalize()
@@ -43,8 +44,12 @@ df["start_date_formatted"] = df["start_date"].fillna(today)
 df["start_date_formatted"] = pd.to_datetime(df["start_date_formatted"], errors='coerce')
 df['days_diff'] = (df["start_date_formatted"] - today).dt.days
 
+print(df.head())
+
 def assign_color(days_diff):
-    if days_diff <= 30:
+    if days_diff < 0:
+        return "gray"
+    elif days_diff <= 30:
         return "red"
     elif days_diff <= 90:
         return "blue"
@@ -76,8 +81,6 @@ size_definitions = """
 **XL:** More than 5000 people
 """
 st.sidebar.markdown(size_definitions)
-
-# df = df.assign(color=lambda x: x["event_type"].map({"Concert": "Crimson", "Conference": "Orchid", "Festival": "Salmon", "Market": "Lime Green", "Football Match": "Copper", "Exhibition or Trade Fair": "Lilac"}))
 
 map = folium.Map(location=[center_lat, center_lng], zoom_start=12)
 for index, row in filtered_df.iterrows():
@@ -139,7 +142,7 @@ template = """
     <li><span style='background:red;opacity:0.7;'></span>Within next 30 days</li>
     <li><span style='background:orange;opacity:0.7;'></span>Within next 90 days</li>
     <li><span style='background:green;opacity:0.7;'></span>Beyond 90 days</li>
-
+    <li><span style='background:gray;opacity:0.7;'></span>Past events</li>
   </ul>
 </div>
 </div>
