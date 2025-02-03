@@ -36,15 +36,12 @@ center_lng = geo_coordinates["lng"]
 
 df = pd.DataFrame(events).assign(size_num=lambda x: x["size"].map({"S": 100, "M": 500, "L": 750, "XL": 1000})).fillna(100)
 df = df.dropna(subset=['lat', 'lng'])
-print("After dropping empty lat lng: ", len(df))
 
 df["start_date_formatted"] = pd.to_datetime(df["start_date"], errors='coerce')
 today = pd.to_datetime('today').normalize()
 df["start_date_formatted"] = df["start_date"].fillna(today)
 df["start_date_formatted"] = pd.to_datetime(df["start_date_formatted"], errors='coerce')
 df['days_diff'] = (df["start_date_formatted"] - today).dt.days
-
-print(df.head())
 
 def assign_color(days_diff):
     if days_diff < 0:
