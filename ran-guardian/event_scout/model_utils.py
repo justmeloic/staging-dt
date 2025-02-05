@@ -5,12 +5,15 @@ import functools
 import time
 import os
 from dotenv import load_dotenv
+import logging
 
 load_dotenv()
 
 PROJECT_ID = os.getenv("PROJECT_ID")
 LOCATION = os.getenv("GEMINI_MODEL_LOCATION")
 MODEL_NAME = os.getenv("GEMINI_MODEL_NAME")
+
+logger = logging.getLogger(__name__)
 
 # Only run this block for Vertex AI API
 client = genai.Client(
@@ -91,7 +94,7 @@ def retry(
     retries=3,
     delay=5,
     backoff=2,
-    logger=print,
+    logger=logger,
 ):
     """
     Retry decorator with exponential backoff.
@@ -116,11 +119,11 @@ def retry(
                         raise  # Re-raise if it's not a 429 error
                     if logger:
                         if isinstance(e, genai.errors.ClientError) and e.response is not None and e.response.status_code == 429:
-                            logger(
+                            logger.info(
                                 f"Rate limit exceeded. Retrying in {mdelay} seconds..."
                             )
                         else:
-                            logger(f"Error: {e}. Retrying in {mdelay} seconds...")
+                            logger.info(f"Error: {e}. Retrying in {mdelay} seconds...")
                     time.sleep(mdelay)
                     mtries -= 1
                     mdelay *= backoff

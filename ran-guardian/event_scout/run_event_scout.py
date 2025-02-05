@@ -5,6 +5,9 @@ import concurrent.futures
 from gmap_utils import geocode_location
 import firestore_helper
 from tqdm import tqdm
+import logging
+
+logger = logging.getLogger(__name__)
 
 duplicate_events_response_schema = {
   "type": "array",
@@ -73,7 +76,7 @@ def discover_events_multithreaded(event_location, event_types):
                 events = future.result()
                 location_events.extend(events)
             except Exception as e:
-                print(f"An error occurred during event discovery: {e}")
+                logger.warning(f"An error occurred during event discovery for location {event_location}: {e}")
 
     return location_events
 
@@ -102,29 +105,28 @@ def format_events(event_type, event_location, event_table)->list[dict]:
 
     try:
         events_formatted = json.loads(response)
-        print(f"Retrieved {len(events_formatted)} events for {event_type} in {event_location}")
+        logger.info(f"Retrieved {len(events_formatted)} events for {event_type} in {event_location}")
     except Exception as e:
-        print(f"Could not parse the events: {e}")
-        print(f"Events: {response}")
+        logger.warning(f"Could not parse the events: {e}")
         raise e
     
     return events_formatted
 
 def write_events_to_db(location, events):
-    print(f"Writing {len(events)} events for {location} to DB")
+    logger.info(f"Writing {len(events)} events for {location} to DB")
     for event in events:
         try:    
             geo_coordinates = geocode_location(event["address"])
             event["lat"] = geo_coordinates["lat"]
             event["lng"] = geo_coordinates["lng"]
         except Exception as e:
-            print(f"Could not geocode location {event['address']}: {e}")
+            logger.warning(f"Could not geocode location {event['address']}: {e}")
 
     firestore_helper.save_events(location, events)
     
     # Update last_scanned field of the given location
     firestore_helper.update_last_scanned(location)
-    print(f"Successfully scouted location {location}")
+    logger.info(f"Successfully scouted location {location}")
 
 
 @retry(exceptions=(Exception), retries=4, delay=10, backoff=2)
@@ -136,33 +138,32 @@ def dedup_events_per_location(event_location):
 
     try:
         duplicate_events = json.loads(response)
-        print(f"Retrieved {len(duplicate_events)} duplicate events in location {event_location}")
+        logger.info(f"Retrieved {len(duplicate_events)} duplicate events in location {event_location}")
     except Exception as e:
-        print(f"Could not parse the events: {e}")
-        print(f"Events: {response}")
+        logger.warning(f"Could not parse the events: {e}")
         raise e
     
     deleted_events = 0
     for event in duplicate_events:
-        print(f'Deleting duplicate entries for event name {event["name"]} start date {event["start_date"]} end date {event["end_date"]} address {event["address"]}')
+        v(f'Deleting duplicate entries for event name {event["name"]} start date {event["start_date"]} end date {event["end_date"]} address {event["address"]}')
         
         if(len(event["duplicate_ids"]) < 2):
-            print(f"Warning: Less than two duplicate_id encountered")
+            logger.warning(f"Less than two duplicate_id encountered")
             continue
         
         for duplicate_id in event["duplicate_ids"][1:]:
-            print(f"Deleting duplicate id {duplicate_id}")
+            logger.info(f"Deleting duplicate id {duplicate_id}")
             firestore_helper.delete_event_by_id(event_location, duplicate_id)
             deleted_events = deleted_events + 1
 
-    print("Deleted events", deleted_events)
+    logger.info("Deleted events", deleted_events)
 
 def main():
     event_types = firestore_helper.get_all_event_types()
-    print(f"Total Event types: {len(event_types)}")
+    logger.info(f"Total Event types: {len(event_types)}")
 
     event_locations = firestore_helper.get_unscanned_locations()
-    print(f"Total Locations: {len(event_locations)}")
+    logger.info(f"Total Locations: {len(event_locations)}")
 
     with tqdm(total=len(event_locations), desc="Scouting Locations", unit="location", bar_format="{l_bar}{bar} {n_fmt}/{total_fmt} | ETA: {remaining} | Elapsed: {elapsed} | {rate_fmt}") as pbar:
         for event_location in event_locations:
@@ -177,6 +178,14 @@ def main():
             pbar.set_postfix({"Location": event_location})
 
 if __name__ == "__main__":
-    print("### Event Scout Started: Looking for events and adding to database ###")
+    
+    logging.basicConfig(
+        filename="event_scout.log",
+        filemode="w",
+        format="%(asctime)s - %(levelname)s - %(message)s",
+        level=logging.INFO,
+    )
+
+    logger.info("### Event Scout Started: Looking for events and adding to database ###")
     main()
-    print("### Event Scout Completed ###")
+    logger.info("### Event Scout Completed ###")
