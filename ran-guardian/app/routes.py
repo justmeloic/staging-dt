@@ -5,6 +5,7 @@ from fastapi import APIRouter, HTTPException, Depends, Request
 import os
 from typing import Dict, Optional, List
 import json
+import logging
 from sse_starlette.sse import EventSourceResponse
 
 from app.models import IssueStatus, Issue
@@ -15,6 +16,8 @@ from app.network_manager import NetworkConfigManager
 
 load_dotenv()
 PROJECT_ID = os.getenv("PROJECT_ID")
+
+logger = logging.getLogger(__name__)
 
 
 router = APIRouter()
@@ -112,10 +115,12 @@ async def stream_logs(request: Request):
 
                 log_entry = None
                 try:
+                    logger.info("Waiting for new event in queue")
                     log_entry = await asyncio.wait_for(
                         queue.get(), timeout=5
                     )  # Wait for up to 5 seconds
                 except asyncio.TimeoutError:
+                    logger.info("Sending ping message")
                     # Send a ping message if timeout
                     yield {"event": "ping", "data": str(datetime.now())}
                     continue  # Skip to the next iteration of the loop.
