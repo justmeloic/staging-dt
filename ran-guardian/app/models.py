@@ -11,6 +11,9 @@ class IssueStatus(str, Enum):
     PENDING_APPROVAL = "pending_approval"
     RESOLVED = "resolved"
     ESCALATE = "escalate"
+    APPROVED = "approved"
+    REJECTED = "rejected"
+    MONITORING = "monitoring"
 
 
 class Location(BaseModel):
