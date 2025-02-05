@@ -1,6 +1,4 @@
 from model_utils import generate, retry
-import typing_extensions as typing
-from google.genai import types
 from prompts import AGGREGATE_EVENTS, DISCOVER_EVENT, DEDUPLICATE_EVENTS
 import json 
 import concurrent.futures

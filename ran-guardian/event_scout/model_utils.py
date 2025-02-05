@@ -129,24 +129,3 @@ def retry(
         return wrapper_retry
 
     return decorator_retry
-
-
-def get_data(data_type: str,) -> list[dict]:
-    """Reads the data from the database and returns it.
-
-
-    Args:
-        data_type: The name of the table to read data from
-    """
-    from data_manager import DataManager
-    data_manager = DataManager()
-    res = data_manager.read_all(data_type=data_type)
-    return res
-
-# response = client.models.generate_content(
-#     model='gemini-2.0-flash-exp',
-#     contents="What is the weather like in Boston?",
-#     config=types.GenerateContentConfig(tools=[get_current_weather],)
-# )
-
-# print(response.text)
