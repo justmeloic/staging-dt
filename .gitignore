@@ -9,3 +9,5 @@ ran-guardian/data/
 *.ipynb
 .env
 *key.json
+*.log
+

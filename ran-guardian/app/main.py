@@ -14,6 +14,10 @@ from app.network_manager import NetworkConfigManager
 load_dotenv()
 PROJECT_ID = os.getenv("PROJECT_ID")
 
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+)
+
 # Initialize your managers
 data_manager = DataManager(project_id=PROJECT_ID)
 network_manager = NetworkConfigManager()

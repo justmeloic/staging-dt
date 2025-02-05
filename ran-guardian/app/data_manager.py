@@ -2,6 +2,7 @@ from datetime import datetime
 import os
 from typing import List, Dict, Optional
 import numpy as np
+import logging
 
 from google.cloud import bigquery
 from google.cloud import firestore
@@ -24,6 +25,8 @@ from event_scout.firestore_helper import (
 )
 import json
 
+logger = logging.getLogger(__name__)
+
 
 class DataManager:
     def __init__(self, project_id: str, manager_db: str = "ran-guardian-data-manager"):
@@ -40,11 +43,13 @@ class DataManager:
     # -------------------
 
     async def get_issues(self) -> List[Issue]:
+        """Retrieves all issue data from Firestore and returns a list of Issues."""
         issues_ref = self.manager_db.collection("issues")
         docs = issues_ref.stream()
         return [Issue(**doc.to_dict()) for doc in docs]
 
     async def get_issue(self, issue_id: str) -> Optional[Issue]:
+        """Retrieves issue data from Firestore"""
         issue_ref = self.manager_db.collection("issues").document(issue_id)
         doc = issue_ref.get()
         if doc.exists:
@@ -52,17 +57,28 @@ class DataManager:
         return None
 
     async def create_issue(self, issue: Dict) -> str:
+        """Creates a new issue in Firestore with data provided in the dictionary. Returns issue_id."""
         issue_ref = self.manager_db.collection("issues").document()
         issue["issue_id"] = issue_ref.id
         issue_ref.set(issue)
         return issue_ref.id
 
     async def update_issue(self, issue_id: str, updates: Dict) -> bool:
+        """Updates issue document with `issue_id` in Firestore with the new data"""
         issue_ref = self.manager_db.collection("issues").document(issue_id)
         issue_ref.update(updates)
         return True
 
     async def get_issue_stats(self) -> Dict:
+        """Retrieves statistics on the number of issues for each status.
+
+        This method queries the Firestore database to count the number of issues
+        associated with each possible value of the `IssueStatus` enum.
+
+        Returns:
+            A dictionary where keys represent issue statuses (as strings) and values
+            are the corresponding counts of issues with that status.
+        """
         stats = {}
         issues_ref = self.manager_db.collection("issues")
         for status in IssueStatus:
@@ -112,10 +128,13 @@ class DataManager:
         max_num_event: Optional[int] = 3,
     ) -> List[Event]:
 
-        if os.environ.get("ENV") == "DEV":
+        if os.environ.get("ENV") in ["LOCAL", "DEV"]:
+            logger.info(f"Generating mock events...")
             return mock_data.generate_events(5)
 
         if location:
+
+            logger.info(f"Getting events for location {location}")
             return self.get_events_by_location(location, start_time, end_time)
 
         else:
@@ -204,9 +223,11 @@ class DataManager:
     ) -> List[NodeData]:
         """Get node IDs near a specific location"""
 
-        if os.environ.get("ENV") == "DEV":
+        if os.environ.get("ENV") == "LOCAL":
+            logger.info("Generating mock nearby nodes")
             return mock_data.generate_nodes(3)[0]
 
+        logger.info("Fetching nearby nodes...")
         QUERY = """
         SELECT
         MS_MSRBS_STO_KNG AS site_id,
