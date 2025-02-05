@@ -118,6 +118,3 @@ def get_nodes_within_radius(lng, lat, radius = 4000):
     return df
 
 # print(get_nodes_within_radius(13.4049, 52.5200, 4000))
-print(len(get_locations("high", 1)))
-
-print(len(get_unscanned_locations()))
