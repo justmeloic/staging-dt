@@ -18,11 +18,15 @@ def get_all_event_types():
     event_types = [doc.to_dict() for doc in docs]
     return event_types
 
-def get_locations(priority = ""):
+def get_locations(priority: str, days_since_last_scan: int) -> list[str]:
+
+    num_days_ago = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=days_since_last_scan)
+
     if priority:
-        docs = db.collection('locations').where(filter=FieldFilter("priority", "==", priority)).stream()
+        docs = db.collection('locations').where(filter=FieldFilter("priority", "==", priority)).where(filter=FieldFilter("last_scanned", "<", num_days_ago)).stream()
     else:
-        docs = db.collection('locations').stream()
+        docs = db.collection('locations').where(filter=FieldFilter("last_scanned", "<", num_days_ago)).stream()
+
     locations = [doc.id for doc in docs if doc.id != "0_stats"]
     return locations
 
@@ -114,3 +118,6 @@ def get_nodes_within_radius(lng, lat, radius = 4000):
     return df
 
 # print(get_nodes_within_radius(13.4049, 52.5200, 4000))
+print(len(get_locations("high", 1)))
+
+print(len(get_unscanned_locations()))

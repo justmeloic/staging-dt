@@ -1,3 +1,4 @@
+from typing import Annotated, Optional
 from model_utils import generate, retry
 from prompts import AGGREGATE_EVENTS, DISCOVER_EVENT, DEDUPLICATE_EVENTS
 import json 
@@ -6,8 +7,11 @@ from gmap_utils import geocode_location
 import firestore_helper
 from tqdm import tqdm
 import logging
+import typer
 
 logger = logging.getLogger(__name__)
+
+app = typer.Typer(add_completion=False)
 
 duplicate_events_response_schema = {
   "type": "array",
@@ -158,11 +162,17 @@ def dedup_events_per_location(event_location):
 
     logger.info("Deleted events", deleted_events)
 
-def main():
+@app.command()
+def main(priority: Annotated[str, typer.Argument(help="Priority of the locations to be scanned (high/medium/low). Leave blank for all.")] = None,
+         days_since_last_scan: Annotated[int, typer.Argument(help="Number of days since last scan")] = 30,
+         verify_events: Annotated[bool, typer.Argument(help="Verify each event with another LLM call")] = False):
+    
+    logger.info(f"Scanning locations with priority {priority} and last scan days {days_since_last_scan} with verify set to {verify_events}")
+
     event_types = firestore_helper.get_all_event_types()
     logger.info(f"Total Event types: {len(event_types)}")
 
-    event_locations = firestore_helper.get_unscanned_locations()
+    event_locations = firestore_helper.get_locations(priority, days_since_last_scan)
     logger.info(f"Total Locations: {len(event_locations)}")
 
     with tqdm(total=len(event_locations), desc="Scouting Locations", unit="location", bar_format="{l_bar}{bar} {n_fmt}/{total_fmt} | ETA: {remaining} | Elapsed: {elapsed} | {rate_fmt}") as pbar:
@@ -187,5 +197,5 @@ if __name__ == "__main__":
     )
 
     logger.info("### Event Scout Started: Looking for events and adding to database ###")
-    main()
+    app()
     logger.info("### Event Scout Completed ###")
