@@ -18,7 +18,6 @@ logger = logging.getLogger(__name__)
 @dataclass
 class AgentConfig:
     run_interval: int = 0.1  # minutes
-    run_interval: int = 0.1  # minutes
     lookforward_period: int = 24  # hours
 
 
@@ -83,17 +82,14 @@ class Agent:
         """Run a single processing cycle"""
         self.last_run = datetime.now()
         logger.info("Starting agent processing cycle")
-        logger.info("Starting agent processing cycle")
         await self.logger.log("info", "Starting agent processing cycle")
 
         events = await self._get_events()
-        logger.info(f"Found {len(events)} events to process")
         logger.info(f"Found {len(events)} events to process")
         await self.logger.log("info", f"Found {len(events)} events to process")
 
         await asyncio.gather(*[self._process_event(event) for event in events])
 
-        logger.info("Finished agent processing cycle")
         logger.info("Finished agent processing cycle")
         await self.logger.log("info", "Finished agent processing cycle")
 
@@ -125,18 +121,15 @@ class Agent:
         """
         # event driven flow
         logger.info(f"Finding nearby nodes for event {event.event_id}")
-        logger.info(f"Finding nearby nodes for event {event.event_id}")
         nodes = await self.data_manager.get_nearby_nodes(event.location)
 
         logger.info(f"Found {len(nodes)} nearby nodes")
 
-        logger.info(f"Found {len(nodes)} nearby nodes")
         ls_validation_summary = []
 
         # [vdantas] potentially data could be fetched from each node in parallel to speed up the process
         # ... currently execution is mostly sequential.
         for node in nodes:
-            logger.info(f"Processing node {node.node_id}")
             logger.info(f"Processing node {node.node_id}")
             await self.logger.log(
                 "info", f"Processing event {event.event_id} for node {node.node_id}"
@@ -166,18 +159,13 @@ class Agent:
 
             logger.info(f"Summary of data collected: {summary}")
 
-            logger.info(f"Summary of data collected: {summary}")
-
             ls_validation_summary.append(summary)
 
         if any(summary.is_valid for summary in ls_validation_summary):
             logger.info("Creating an issue...")
-            logger.info("Creating an issue...")
             issue_id = await self._create_issue(event, ls_validation_summary)
 
-            logger.info(f"Created issue in Firestore with document ID {issue_id}")
-
-            logger.info(f"Created issue in Firestore with document ID {issue_id}")
+            logger.info(f"Issue ID {issue_id}")
             await self.logger.log(
                 "info", f"Created issue {issue_id} for event {event.event_id}"
             )
@@ -215,6 +203,7 @@ class Agent:
         """
         valid_summaries = [s for s in validation_summaries if s.is_valid]
         if not valid_summaries:
+            logger.info("No valid summaries")
             return None
 
         issue = {
@@ -246,18 +235,12 @@ class Agent:
         """
         """Handle issue resolution flow"""
         logger.info(f"Handling issue {issue_id}")
-        logger.info(f"Handling issue {issue_id}")
         await self.logger.log("info", f"Handling issue {issue_id}", issue_id=issue_id)
 
         issue = await self.data_manager.get_issue(issue_id)
         needs_human = await self.llm_helper.evaluate_severity(
             issue.model_dump()  # Convert pydantic model to dict
         )
-        if needs_human:
-            logger.info(f"Issue {issue_id} needs human intervention")
-        else:
-            logger.info(f"Issue {issue_id} can be automatically resolved")
-
         if needs_human:
             logger.info(f"Issue {issue_id} needs human intervention")
         else:
@@ -297,6 +280,7 @@ class Agent:
         """Handle issues that can be automatically resolved"""
         logger.info("Fetching issue data...")
         issue = await self.data_manager.get_issue(issue_id)
+        logger.info(f"Dispatching issue {issue_id} to AI agent.")
         await self.logger.log(
             "info",
             f"Dispatching issue {issue_id} to AI agent",
@@ -308,9 +292,12 @@ class Agent:
             issue=issue,
         )
 
+        logger.info("Checking for existing checkpoints...")
         checkpoint = await self.data_manager.load_checkpoint(issue_id)
         if checkpoint:
-            logger.info("Checkpoint found for issue. Agent will resume work...")
+            logger.info(
+                f"Checkpoint found for issue {issue_id}. Agent will resume work..."
+            )
             ai_agent.load_checkpoint(checkpoint[0])
             ai_agent.load_chat_history(checkpoint[1])
 
@@ -321,7 +308,7 @@ class Agent:
         checkpoint = await ai_agent.get_checkpoint()
         chat_history = ai_agent.get_chat_history()
 
-        logger.info("Saving to Firestore...")
+        logger.info("Saving checkpoint to Firestore...")
         await self.data_manager.save_checkpoint(issue_id, checkpoint, chat_history)
 
     async def _handle_approved_issue_resolution(self, issue_id: str):

@@ -240,37 +240,45 @@ class ReasoningAgent:
             tool_name = tool_calls[0]["name"]
             if tool_name == "monitor_node_metrics" and issue_status != "monitoring":
                 await update_issue_status(issue_id, "monitoring")
-                logger.info("[Router] End of workflow")
+                logger.info("[Issue: {issue_id} | Main agent | Router] End of workflow")
                 return END
 
             if tool_name in AUTOMATIC_TOOLS:
                 if issue_status == "monitoring":
                     await update_issue_status(issue_id, "analyzing")
 
-                logger.info(f"[Router] Routing to tool ({tool_name})")
+                logger.info(
+                    f"[Issue: {issue_id} | Main agent | Router] Routing to tool ({tool_name})"
+                )
                 return "tools"
             else:
                 if issue_status == "approved":
-                    logger.info(f"[Router] Routing to tool ({tool_name})")
+                    logger.info(
+                        f"[Issue: {issue_id} | Main agent | Router] Routing to tool ({tool_name})"
+                    )
                     return "tools"
                 elif issue_status == "analyzing":
                     print(
-                        f"[Router] Tool is not approved for execution. Updating Issue status to pending approval..."
+                        f"[Issue: {issue_id} | Main agent | Router] Tool is not approved for execution. Updating Issue status to pending approval..."
                     )
                     await update_issue_status(issue_id, "pending_approval")
-                    logger.info("[Router] End of workflow")
+                    logger.info(
+                        "[Issue: {issue_id} | Main agent | Router] End of workflow"
+                    )
                     return END
 
                 elif issue_status in ["rejected", "pending_approval"]:
                     print(
-                        f"[Router] Issue was rejected or is still pending approval. Will not execute tool."
+                        f"[Issue: {issue_id} | Main agent | Router] Issue was rejected or is still pending approval. Will not execute tool."
                     )
                     logger.info("[Router] End of workflow")
                     return END
 
         else:
             # End the conversation flow.
-            logger.info("[Router] No tool call found. Ending workflow.")
+            logger.info(
+                "[Issue: {issue_id} | Main agent | Router] No tool call found. Ending workflow."
+            )
             return END
 
 

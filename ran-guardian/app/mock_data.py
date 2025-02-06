@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta, timezone
+from functools import cache
 import random
 from typing import List, Tuple
 import uuid
@@ -35,6 +36,7 @@ def generate_nodes(num_nodes=5) -> Tuple[List[NodeData], List[str]]:
     return nodes, node_ids
 
 
+@cache
 def generate_events(num_events=10):
     """Generate mock event data"""
     events = []
