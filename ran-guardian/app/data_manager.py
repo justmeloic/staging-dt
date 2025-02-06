@@ -1,6 +1,6 @@
 from datetime import datetime
 import os
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Tuple
 import numpy as np
 import logging
 
@@ -8,6 +8,9 @@ from google.cloud import bigquery
 from google.cloud import firestore
 from google.cloud.firestore_v1.base_query import FieldFilter
 from pydantic import BaseModel, Field
+from langchain_core.load import dumpd, loads
+from langgraph.types import StateSnapshot
+from langchain_core.messages import BaseMessage
 from app.models import (
     Alarm,
     Location,
@@ -263,3 +266,49 @@ class DataManager:
                     )  # mock the capacity for now
                 )
         return nodes
+
+    # -------------------
+    # Agent state management
+    # -------------------
+    async def save_checkpoint(
+        self, issue_id: str, checkpoint: StateSnapshot, chat_history: list[BaseMessage]
+    ) -> str:
+        checkpoint_ref = self.manager_db.collection("agent_checkpoints").document(
+            issue_id
+        )
+
+        checkpoint_dict = checkpoint._asdict()  # dumpd(checkpoint)
+
+        serialized_msgs = []
+        for msg in checkpoint_dict["values"]:
+            serialized_msgs.append(dumpd(msg))
+
+        checkpoint_dict["values"] = serialized_msgs
+
+        last_msg = dumpd(checkpoint_dict["metadata"]["writes"]["main_agent"])
+        checkpoint_dict["metadata"]["writes"]["main_agent"] = last_msg
+
+
+        serialized_chat_history = [dumpd(msg) for msg in chat_history]
+
+        checkpoint_ref.set(
+            {"snapshot": checkpoint_dict, "chat_history": serialized_chat_history}
+        )
+
+        return checkpoint_ref.id
+
+    async def load_checkpoint(
+        self, issue_id: str
+    ) -> Optional[Tuple[StateSnapshot, list[BaseMessage]]]:
+        checkpoint_ref = self.manager_db.collection("agent_checkpoints").document(
+            issue_id
+        )
+        doc = checkpoint_ref.get()
+
+        if not doc.exists:
+            return None
+
+        data = loads(doc)
+        logger.info("Data retrieved", data)
+
+        return StateSnapshot(**data["snapshot"]), data["chat_history"]

@@ -27,18 +27,18 @@ def monitor_node_metrics(node_id: str) -> dict:
 
 
 @tool
-def finish_and_resolve_issue(issue_id: str, summary: str) -> str:
+async def finish_and_resolve_issue(issue_id: str, summary: str) -> str:
     """Finish and mark the issue as resolved."""
-    update_issue_status_and_summary(issue_id, "resolved", summary)
+    await update_issue_status_and_summary(issue_id, "resolved", summary)
 
     return "Issue resolved"
 
 
 @tool
-def finish_and_escalate(issue_id: str, summary: str) -> str:
+async def finish_and_escalate(issue_id: str, summary: str) -> str:
     """Finish and mark the issue as escalated."""
 
-    update_issue_status_and_summary(issue_id, "escalate", summary)
+    await update_issue_status_and_summary(issue_id, "escalate", summary)
 
     return "Issue escalated"
 

@@ -34,51 +34,44 @@ def format_message(message: BaseMessage | list[BaseMessage]) -> str:
             return str(message)
 
 
-def get_sample_issue() -> Issue:
-    issues = asyncio.run(dm.get_issues())
+async def get_sample_issue() -> Issue:
+    issues = await dm.get_issues()
     issue = random.choice(issues)
     issue.status = IssueStatus.ANALYZING
     return issue
 
 
-def get_issue(issue_id: str) -> Issue:
-    return asyncio.run(dm.get_issue(issue_id))
+async def get_issue(issue_id: str) -> Issue:
+    return await dm.get_issue(issue_id)
 
 
-def check_issue_status(issue_id: str) -> str:
-    issue = asyncio.run(dm.get_issue(issue_id))
+async def check_issue_status(issue_id: str) -> str:
+    issue = await dm.get_issue(issue_id)
     if issue:
         return issue.status
     else:
         raise ValueError("Issue does not exist")
 
 
-def update_issue_status_and_summary(
+async def update_issue_status_and_summary(
     issue_id: str, status: IssueStatus, summary: str
 ) -> bool:
-    return asyncio.run(
-        dm.update_issue(
-            issue_id,
-            {
-                "status": status,
-                "summary": summary,
-                "updated_at": firestore.SERVER_TIMESTAMP,
-            },
-        )
+    return await dm.update_issue(
+        issue_id,
+        {
+            "status": status,
+            "summary": summary,
+            "updated_at": firestore.SERVER_TIMESTAMP,
+        },
     )
 
 
-def update_issue_status(issue_id: str, status: IssueStatus) -> bool:
-    return asyncio.run(
-        dm.update_issue(
-            issue_id,
-            {"status": status, "updated_at": firestore.SERVER_TIMESTAMP},
-        )
+async def update_issue_status(issue_id: str, status: IssueStatus) -> bool:
+    return await dm.update_issue(
+        issue_id,
+        {"status": status, "updated_at": firestore.SERVER_TIMESTAMP},
     )
 
 
 def strip_markdown(text: str) -> str:
     return text.replace("```json", "```").replace("```python", "```").replace("```", "")
-
-
-sample_issue = get_sample_issue()
