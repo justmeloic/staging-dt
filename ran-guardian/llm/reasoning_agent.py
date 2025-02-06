@@ -1,3 +1,4 @@
+import asyncio
 import vertexai
 import logging
 import os
@@ -26,7 +27,7 @@ from llm.utils import (
     update_issue_status_and_summary,
     update_issue_status,
     format_message,
-    sample_issue,
+    get_sample_issue,
 )
 from llm.tools import (
     monitor_node_metrics,
@@ -160,10 +161,10 @@ class ReasoningAgent:
             checkpointer=MemorySaver(), store=InMemoryStore()
         )
 
-    def get_checkpoint(self) -> StateSnapshot:
+    async def get_checkpoint(self) -> StateSnapshot:
         """Get the current state of the agent."""
-
-        return self.runnable.get_state(self.config)
+        return await self.runnable.aget_state(self.config)
+        # return self.runnable.get_state(self.config)
 
     def load_checkpoint(self, checkpoint: StateSnapshot):
         """Load the given checkpoint into the agent's config."""
@@ -179,14 +180,14 @@ class ReasoningAgent:
         """Load the given chat history into the agent."""
         self.chat_history = chat_history
 
-    def run_workflow(self) -> list[BaseMessage]:
+    async def run_workflow(self) -> list[BaseMessage]:
         """Run the agent's LangGraph workflow and returns new messages since starting history"""
         if not self.runnable:
             raise RuntimeError("Agent not set up. Call set_up() first.")
 
         new_messages = []
         try:
-            for output_dict in self.runnable.stream(
+            async for output_dict in self.runnable.astream(
                 self.chat_history, config=self.config
             ):
                 for _, output in output_dict.items():
@@ -220,7 +221,7 @@ class ReasoningAgent:
             logger.error(f"Error during query execution", exc_info=True)
             raise
 
-    def _router(
+    async def _router(
         self,
         state: list[BaseMessage],
     ) -> Literal[
@@ -232,36 +233,35 @@ class ReasoningAgent:
         tool_calls = state[-1].tool_calls
         issue_id = self.issue.issue_id
 
+        issue_status = await check_issue_status(issue_id)
+
         # If there are any tool_calls
         if len(tool_calls):
             tool_name = tool_calls[0]["name"]
-            if (
-                tool_name == "monitor_node_metrics"
-                and check_issue_status(issue_id) != "monitoring"
-            ):
-                update_issue_status(issue_id, "monitoring")
+            if tool_name == "monitor_node_metrics" and issue_status != "monitoring":
+                await update_issue_status(issue_id, "monitoring")
                 logger.info("[Router] End of workflow")
                 return END
 
             if tool_name in AUTOMATIC_TOOLS:
-                if check_issue_status(issue_id) == "monitoring":
-                    update_issue_status(issue_id, "analyzing")
+                if issue_status == "monitoring":
+                    await update_issue_status(issue_id, "analyzing")
 
                 logger.info(f"[Router] Routing to tool ({tool_name})")
                 return "tools"
             else:
-                if check_issue_status(issue_id) == "approved":
+                if issue_status == "approved":
                     logger.info(f"[Router] Routing to tool ({tool_name})")
                     return "tools"
-                elif check_issue_status(issue_id) == "analyzing":
+                elif issue_status == "analyzing":
                     print(
                         f"[Router] Tool is not approved for execution. Updating Issue status to pending approval..."
                     )
-                    update_issue_status(issue_id, "pending_approval")
+                    await update_issue_status(issue_id, "pending_approval")
                     logger.info("[Router] End of workflow")
                     return END
 
-                elif check_issue_status(issue_id) in ["rejected", "pending_approval"]:
+                elif issue_status in ["rejected", "pending_approval"]:
                     print(
                         f"[Router] Issue was rejected or is still pending approval. Will not execute tool."
                     )
@@ -283,56 +283,65 @@ if __name__ == "__main__":
         level=logging.INFO,
     )
 
-    a = ReasoningAgent(
-        project="de1000-dev-mwc-ran-agent", location="us-central1", issue=sample_issue
-    )
-    a.set_up()
-    print(f">> Issue state:\n {sample_issue}\n")
-    a.run_workflow()
-    # Save state before interruption
-    checkpoint = a.get_checkpoint()
-    history = a.get_chat_history()
+    loop = asyncio.get_event_loop()
 
-    logger.info("Monitoring...")
-    sleep(5)
-    logger.info("Continuing...")
-    issue = get_issue(sample_issue.issue_id)
-    logger.info(f">> Issue state:\n {issue}\n")
+    async def run_test():
+        sample_issue = await get_sample_issue()
+        a = ReasoningAgent(
+            project="de1000-dev-mwc-ran-agent",
+            location="us-central1",
+            issue=sample_issue,
+        )
+        a.set_up()
+        print(f">> Issue state:\n {sample_issue}\n")
+        await a.run_workflow()
 
-    new_agent = ReasoningAgent(
-        project="de1000-dev-mwc-ran-agent",
-        location="us-central1",
-        issue=get_issue(sample_issue.issue_id),
-    )
-    new_agent.set_up()
-    new_agent.load_checkpoint(checkpoint)
-    new_agent.load_chat_history(history)
+        # Save state before interruption
+        checkpoint = a.get_checkpoint()
+        history = a.get_chat_history()
 
-    # Continue the workflow
-    new_agent.run_workflow()
+        logger.info("Monitoring...")
+        sleep(5)
+        logger.info("Continuing...")
+        issue = await get_issue(sample_issue.issue_id)
+        logger.info(f">> Issue state:\n {issue}\n")
 
-    issue = get_issue(sample_issue.issue_id)
-    logger.info(f">> Issue state:\n {issue}\n")
+        new_agent = ReasoningAgent(
+            project="de1000-dev-mwc-ran-agent",
+            location="us-central1",
+            issue=issue,
+        )
+        new_agent.set_up()
+        new_agent.load_checkpoint(checkpoint)
+        new_agent.load_chat_history(history)
 
-    checkpoint = new_agent.get_checkpoint()
-    history = new_agent.get_chat_history()
+        # Continue the workflow
+        await new_agent.run_workflow()
 
-    ## Final stage
+        issue = await get_issue(sample_issue.issue_id)
+        logger.info(f">> Issue state:\n {issue}\n")
 
-    logger.info("Monitoring...")
-    sleep(5)
-    logger.info("Continuing...")
-    new_agent = ReasoningAgent(
-        project="de1000-dev-mwc-ran-agent",
-        location="us-central1",
-        issue=get_issue(sample_issue.issue_id),
-    )
-    new_agent.set_up()
-    new_agent.load_checkpoint(checkpoint)
-    new_agent.load_chat_history(history)
+        checkpoint = new_agent.get_checkpoint()
+        history = new_agent.get_chat_history()
 
-    # Continue the workflow
-    new_agent.run_workflow()
+        ## Final stage
 
-    issue = get_issue(sample_issue.issue_id)
-    logger.info(f">> Final Issue state:\n {issue}\n")
+        logger.info("Monitoring...")
+        sleep(5)
+        logger.info("Continuing...")
+        new_agent = ReasoningAgent(
+            project="de1000-dev-mwc-ran-agent",
+            location="us-central1",
+            issue=issue,
+        )
+        new_agent.set_up()
+        new_agent.load_checkpoint(checkpoint)
+        new_agent.load_chat_history(history)
+
+        # Continue the workflow
+        await new_agent.run_workflow()
+
+        issue = await get_issue(sample_issue.issue_id)
+        logger.info(f">> Final Issue state:\n {issue}\n")
+
+    loop.run_until_complete(run_test())
