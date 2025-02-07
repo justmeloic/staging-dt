@@ -7,7 +7,7 @@ from typing import Dict, Optional, List
 import json
 import logging
 from sse_starlette.sse import EventSourceResponse
-
+from google.cloud import firestore
 from app.models import IssueStatus, Issue
 from app.agent import Agent
 from app.data_manager import DataManager
@@ -69,6 +69,10 @@ async def update_issue(
     issue_id: str, updates: Dict, data_manager: DataManager = Depends(get_data_manager)
 ):
     """Update the status of an issue"""
+    if not updates:
+        raise HTTPException(status_code=400, detail="No updates provided")
+
+    updates["updated_at"] = firestore.SERVER_TIMESTAMP
     return await data_manager.update_issue(issue_id, updates)
 
 
@@ -78,26 +82,37 @@ async def get_issue_stats(data_manager: DataManager = Depends(get_data_manager))
     return await data_manager.get_issue_stats()
 
 
+@router.post("/issues/approve/{issue_id}")
+async def run_network_config_proposal(
+    issue_id: str,
+    data_manager: DataManager = Depends(get_data_manager),
+):
+    """Trigger network configuration changes based on the proposed config"""
+    return await data_manager.update_issue(
+        issue_id, {"status": "approved", "updated_at": firestore.SERVER_TIMESTAMP}
+    )
+
+
 # ---
 # Network config
 # ---
-@router.get("/network-config/propose/{issue_id}")
-async def get_network_config_proposal(
-    issue_id: str,
-    network_manager: NetworkConfigManager = Depends(get_network_config_manager),
-):
-    """Get a network configuration proposal for a specific issue"""
-    return await network_manager.get_network_config_proposal(issue_id)
+# @router.get("/network-config/propose/{issue_id}")
+# async def get_network_config_proposal(
+#     issue_id: str,
+#     network_manager: NetworkConfigManager = Depends(get_network_config_manager),
+# ):
+#     """Get a network configuration proposal for a specific issue"""
+#     return await network_manager.get_network_config_proposal(issue_id)
 
 
-@router.post("/network-config/run/{proposal_id}")
-async def run_network_config_proposal(
-    proposal_id: str,
-    config: Optional[dict] = None,
-    network_manager: NetworkConfigManager = Depends(get_network_config_manager),
-):
-    """Trigger network configuration changes based on the proposed config"""
-    return await network_manager.run_network_config_proposal(proposal_id, config)
+# @router.post("/network-config/run/{proposal_id}")
+# async def run_network_config_proposal(
+#     proposal_id: str,
+#     config: Optional[dict] = None,
+#     network_manager: NetworkConfigManager = Depends(get_network_config_manager),
+# ):
+#     """Trigger network configuration changes based on the proposed config"""
+#     return await network_manager.run_network_config_proposal(proposal_id, config)
 
 
 @router.get("/logs/stream")

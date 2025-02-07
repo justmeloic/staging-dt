@@ -1,13 +1,16 @@
 from datetime import datetime
 import os
-from typing import List, Dict, Optional
+import pickle
+from typing import List, Dict, Optional, Tuple
 import numpy as np
 import logging
 
-from google.cloud import bigquery
-from google.cloud import firestore
+from google.cloud import bigquery, firestore, storage
 from google.cloud.firestore_v1.base_query import FieldFilter
 from pydantic import BaseModel, Field
+from langchain_core.load import dumpd, load
+from langgraph.types import StateSnapshot
+from langchain_core.messages import BaseMessage
 from app.models import (
     Alarm,
     Location,
@@ -58,9 +61,34 @@ class DataManager:
 
     async def create_issue(self, issue: Dict) -> str:
         """Creates a new issue in Firestore with data provided in the dictionary. Returns issue_id."""
-        issue_ref = self.manager_db.collection("issues").document()
-        issue["issue_id"] = issue_ref.id
-        issue_ref.set(issue)
+        logger.info("Creating issue in Firestore or checking for existing one")
+        issue_id = issue.get("event_id")
+        issue["issue_id"] = issue_id
+
+        issue_ref = self.manager_db.collection("issues").document(issue_id)
+        doc = issue_ref.get()
+
+        if doc.exists:
+            logger.info("Getting existing doc...")
+            issue_dict = doc.to_dict()
+            current_status = issue_dict["status"]
+            logger.info(f"Found existing issue with status {current_status}")
+            if current_status == IssueStatus.RESOLVED.value:
+                # Reopen
+                updates = {
+                    "status": IssueStatus.NEW,
+                    "created_at": firestore.SERVER_TIMESTAMP,
+                    "updated_at": firestore.SERVER_TIMESTAMP,
+                }
+                issue_ref.update(updates)
+            else:
+                logger.info(
+                    f"Issue already exists for event. Current status is {current_status}"
+                )
+        else:
+            logger.info("Creating new issue for event")
+            issue_ref.set(issue)
+
         return issue_ref.id
 
     async def update_issue(self, issue_id: str, updates: Dict) -> bool:
@@ -130,7 +158,7 @@ class DataManager:
 
         if os.environ.get("ENV") in ["LOCAL", "DEV"]:
             logger.info(f"Generating mock events...")
-            return mock_data.generate_events(5)
+            return mock_data.generate_events(2)
 
         if location:
 
@@ -263,3 +291,49 @@ class DataManager:
                     )  # mock the capacity for now
                 )
         return nodes
+
+    # -------------------
+    # Agent state management
+    # -------------------
+    async def save_checkpoint(
+        self, issue_id: str, checkpoint: StateSnapshot, chat_history: list[BaseMessage]
+    ) -> None:
+        checkpoint_ref = self.manager_db.collection("agent_checkpoints").document(
+            issue_id
+        )
+
+        bucket_name = os.environ.get("BUCKET_NAME")
+        checkpoints_location = os.environ.get("CHECKPOINTS_LOCATION")
+
+        client = storage.Client()
+        bucket = client.bucket(bucket_name)
+        snapshot_blob = bucket.blob(f"{checkpoints_location}/{issue_id}_snapshot.pkl")
+        history_blob = bucket.blob(f"{checkpoints_location}/{issue_id}_history.pkl")
+
+        snapshot_blob.upload_from_string(pickle.dumps(checkpoint))
+        history_blob.upload_from_string(pickle.dumps(chat_history))
+
+    async def load_checkpoint(
+        self, issue_id: str
+    ) -> Optional[Tuple[StateSnapshot, list[BaseMessage]]]:
+
+        client = storage.Client()
+
+        bucket_name = os.environ.get("BUCKET_NAME")
+        checkpoints_location = os.environ.get("CHECKPOINTS_LOCATION")
+
+        bucket = client.bucket(bucket_name)
+        snapshot_blob = bucket.blob(f"{checkpoints_location}/{issue_id}_snapshot.pkl")
+        history_blob = bucket.blob(f"{checkpoints_location}/{issue_id}_history.pkl")
+
+        if not snapshot_blob.exists():
+            return None
+
+        snapshot_data = pickle.loads(snapshot_blob.download_as_bytes())
+
+        if not history_blob.exists():
+            chat_history_data = []
+        else:
+            chat_history_data = pickle.loads(history_blob.download_as_bytes())
+
+        return snapshot_data, chat_history_data

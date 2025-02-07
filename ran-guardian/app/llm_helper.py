@@ -1,3 +1,4 @@
+import random
 from typing import Dict, List, Optional
 from dataclasses import dataclass
 from enum import Enum
@@ -43,7 +44,7 @@ class LLMHelper:
 
     async def evaluate_severity(self, issue: Dict) -> bool:
         """Evaluate if an issue requires human attention"""
-        return True
+        return True if random.random() < 0.5 else False
 
     async def evaluate_resolution_success(
         self, issue: Dict, performance_data: List[Dict]

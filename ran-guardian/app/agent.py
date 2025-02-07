@@ -1,14 +1,16 @@
-from typing import List, Dict, Optional, Set
-from datetime import datetime, timedelta
 import asyncio
 import logging
+import os
+from typing import List, Dict, Optional, Set
+from datetime import datetime, timedelta
 from dataclasses import dataclass
 from app.models import IssueStatus, Event, PerformanceData, Issue, ValidationResult
 from app.llm_helper import LLMHelper, Risk
 from app.data_manager import DataManager
 from app.network_manager import NetworkConfigManager
+from llm.reasoning_agent import ReasoningAgent
 from collections import deque
-import json
+
 
 logger = logging.getLogger(__name__)
 
@@ -68,6 +70,7 @@ class Agent:
     async def _run(self):
         """Internal method to run periodic tasks"""
         logger.info("Running agent...")
+        logger.info("Running agent...")
         while True:
             try:
                 await self._process_cycle()
@@ -121,6 +124,7 @@ class Agent:
         nodes = await self.data_manager.get_nearby_nodes(event.location)
 
         logger.info(f"Found {len(nodes)} nearby nodes")
+
         ls_validation_summary = []
 
         # [vdantas] potentially data could be fetched from each node in parallel to speed up the process
@@ -161,12 +165,15 @@ class Agent:
             logger.info("Creating an issue...")
             issue_id = await self._create_issue(event, ls_validation_summary)
 
-            logger.info(f"Created issue in Firestore with document ID {issue_id}")
+            logger.info(f"Issue ID {issue_id}")
             await self.logger.log(
                 "info", f"Created issue {issue_id} for event {event.event_id}"
             )
 
             if not issue_id:
+                logger.error(
+                    "Something went wrong while creating an issue document in Firestore"
+                )
                 logger.error(
                     "Something went wrong while creating an issue document in Firestore"
                 )
@@ -196,6 +203,7 @@ class Agent:
         """
         valid_summaries = [s for s in validation_summaries if s.is_valid]
         if not valid_summaries:
+            logger.info("No valid summaries")
             return None
 
         issue = {
@@ -245,45 +253,67 @@ class Agent:
             needs_human=needs_human,
         )
 
-        config = await self.network_manager.get_network_config_proposal(issue_id)
-        if not config:
-            await self._update_status(
-                issue_id,
-                IssueStatus.ESCALATE,
-                "Failed to generate network configuration",
-            )
-            return
+        # config = await self.network_manager.get_network_config_proposal(issue_id)
+        # if not config:
+        #     await self._update_status(
+        #         issue_id,
+        #         IssueStatus.ESCALATE,
+        #         "Failed to generate network configuration",
+        #     )
+        #     return
 
         if needs_human:
             await self._handle_human_intervention(issue_id)
         else:
-            await self._handle_automatic_resolution(issue_id, config)
+            await self._handle_automatic_resolution(issue_id)
 
     async def _handle_human_intervention(self, issue_id: str):
         """Handle issues requiring human intervention"""
-        #TODO Update issue with proposed network config action.  
-        # Make it a nested object including all the required field.
 
         await self._update_status(
             issue_id,
             IssueStatus.PENDING_APPROVAL,
-            "Awaiting human approval for proposed configuration",
+            "Awaiting human approval before any action is taken",
         )
 
-    async def _handle_automatic_resolution(self, issue_id: str, config: Dict):
+    async def _handle_automatic_resolution(self, issue_id: str):
         """Handle issues that can be automatically resolved"""
-        success = await self.network_manager.run_network_config_proposal(
-            issue_id, config
+        logger.info("Fetching issue data...")
+        issue = await self.data_manager.get_issue(issue_id)
+        logger.info(f"Dispatching issue {issue_id} to AI agent.")
+        await self.logger.log(
+            "info",
+            f"Dispatching issue {issue_id} to AI agent",
+            issue_id=issue_id,
         )
-        status = IssueStatus.RESOLVED if success else IssueStatus.ESCALATE
-        message = (
-            f"Configuration {'applied successfully' if success else 'failed to apply'}"
+        ai_agent = ReasoningAgent(
+            project=os.environ.get("PROJECT_ID"),
+            location=os.environ.get("VERTEXAI_LOCATION"),
+            issue=issue,
         )
-        await self._update_status(issue_id, status, message)
+
+        logger.info("Checking for existing checkpoints...")
+        checkpoint = await self.data_manager.load_checkpoint(issue_id)
+        if checkpoint:
+            logger.info(
+                f"Checkpoint found for issue {issue_id}. Agent will resume work..."
+            )
+            ai_agent.load_checkpoint(checkpoint[0])
+            ai_agent.load_chat_history(checkpoint[1])
+
+        ai_agent.set_up()
+
+        await ai_agent.run_workflow()
+
+        checkpoint = await ai_agent.get_checkpoint()
+        chat_history = ai_agent.get_chat_history()
+
+        logger.info("Saving checkpoint to Firestore...")
+        await self.data_manager.save_checkpoint(issue_id, checkpoint, chat_history)
 
     async def _handle_approved_issue_resolution(self, issue_id: str):
-        #TODO: 
-        # Step 1. Retrieve network config action 
+        # TODO:
+        # Step 1. Retrieve network config action
         pass
 
     async def _update_status(self, issue_id: str, status: IssueStatus, message: str):
