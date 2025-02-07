@@ -28,7 +28,7 @@ def get_locations(priority: str, days_since_last_scan: int) -> list[str]:
         docs = db.collection('locations').where(filter=FieldFilter("last_scanned", "<", num_days_ago)).stream()
 
     locations = [doc.id for doc in docs if doc.id != "0_stats"]
-    return locations
+    return sorted(locations)
 
 def update_last_scanned(location):
     doc_ref = db.collection("locations").document(location)
@@ -47,7 +47,7 @@ def get_unscanned_locations(num_days = 360):
     num_days_ago = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=num_days)
     docs = db.collection("locations").where(filter=FieldFilter("last_scanned", "<", num_days_ago)).stream()
     locations = [doc.id for doc in docs]
-    return locations
+    return sorted(locations)
 
 def save_events(location, events):
     for event in events:

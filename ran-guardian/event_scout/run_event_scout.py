@@ -163,7 +163,7 @@ def dedup_events_per_location(event_location):
             firestore_helper.delete_event_by_id(event_location, duplicate_id)
             deleted_events = deleted_events + 1
 
-    logger.info("Deleted events", deleted_events)
+    logger.info(f"Deleted events: {deleted_events} for location {event_location}")
 
 @app.command()
 def main(priority: Annotated[str, typer.Option(prompt=True, help="Priority of the locations to be scanned (high/medium/low/all)")] = "high",
@@ -181,6 +181,8 @@ def main(priority: Annotated[str, typer.Option(prompt=True, help="Priority of th
     with tqdm(total=len(event_locations), desc="Scouting Locations", unit="location", bar_format="{l_bar}{bar} {n_fmt}/{total_fmt} | ETA: {remaining} | Elapsed: {elapsed} | {rate_fmt}") as pbar:
         for event_location in event_locations:
             pbar.set_description(f"Scouting: {event_location}")
+            logger.info(f"Scouting: {event_location}")
+
             events = discover_events_multithreaded(event_location, event_types)
             write_events_to_db(event_location, events)
 
