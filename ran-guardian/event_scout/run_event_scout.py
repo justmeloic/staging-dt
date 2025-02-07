@@ -1,4 +1,6 @@
-from typing import Annotated, Optional
+"""Event Scout to discover people events with Gemini and Google Search"""
+
+from typing import Annotated
 from model_utils import generate, retry
 from prompts import AGGREGATE_EVENTS, DISCOVER_EVENT, DEDUPLICATE_EVENTS
 import json 
@@ -116,7 +118,9 @@ def format_events(event_type, event_location, event_table)->list[dict]:
     
     return events_formatted
 
-def write_events_to_db(location, events):
+def write_events_to_db(location: str, events: list[dict]):
+    """Persists the discovered events."""
+
     logger.info(f"Writing {len(events)} events for {location} to DB")
     for event in events:
         try:    

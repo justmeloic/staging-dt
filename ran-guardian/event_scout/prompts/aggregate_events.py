@@ -1,3 +1,5 @@
+"""Prompt templete for aggregating events."""
+
 AGGREGATE_EVENTS = """
 Please aggregate all the different events into the expected format as you can find them below:
 <raw_event_responses>
