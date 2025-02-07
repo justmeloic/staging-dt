@@ -18,12 +18,13 @@ st.sidebar.text("")
 
 show_locations = st.sidebar.checkbox("Show DT Site Locations")
 
-st.sidebar.subheader("Filter Events")
-selected_location_high = st.sidebar.radio("**Featured Locations (Germany)**", firestore_helper.get_locations(priority="high"), index=1)
-selected_locations_all = st.sidebar.multiselect("All Locations", firestore_helper.get_locations())
-selected_locations = [selected_location_high] + selected_locations_all
+location = "Berlin Berlin"
 
-location = selected_locations[0] if selected_locations else "Berlin Berlin"
+st.sidebar.subheader("Filter Events")
+selected_location_high = st.sidebar.radio("**Featured Locations (Germany)**", firestore_helper.get_locations(priority="high", days_since_last_scan=0), index=1)
+selected_locations_all = st.sidebar.multiselect("All Locations", firestore_helper.get_locations(priority="all", days_since_last_scan=0))
+
+location = selected_locations_all[0] if len(selected_locations_all) else selected_location_high
 
 st.title(f":primary[RAN Guardian Events Explorer] - {location}")
 events = firestore_helper.get_events_by_location(location)
@@ -36,15 +37,12 @@ center_lng = geo_coordinates["lng"]
 
 df = pd.DataFrame(events).assign(size_num=lambda x: x["size"].map({"S": 100, "M": 500, "L": 750, "XL": 1000})).fillna(100)
 df = df.dropna(subset=['lat', 'lng'])
-print("After dropping empty lat lng: ", len(df))
 
 df["start_date_formatted"] = pd.to_datetime(df["start_date"], errors='coerce')
 today = pd.to_datetime('today').normalize()
 df["start_date_formatted"] = df["start_date"].fillna(today)
 df["start_date_formatted"] = pd.to_datetime(df["start_date_formatted"], errors='coerce')
 df['days_diff'] = (df["start_date_formatted"] - today).dt.days
-
-print(df.head())
 
 def assign_color(days_diff):
     if days_diff < 0:

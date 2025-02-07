@@ -22,4 +22,4 @@ COPY . .
 EXPOSE 8501
 
 # Define the command to run your Streamlit application using poetry
-CMD ["poetry", "run", "streamlit", "run", "event_scout/events_explorer_ui.py", "--server.port=8501", "--server.headless=true", "--server.enableCORS=false"]
+CMD ["poetry", "run", "streamlit", "run", "event_scout/st_events_explorer_ui.py", "--server.port=8501", "--server.headless=true"]

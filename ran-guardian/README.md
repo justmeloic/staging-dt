@@ -19,11 +19,11 @@ poetry run python ran_guardian/run_event_scout.py
 
 # Set up Events Explorer UI as a Cloud Run service
 ```
-gcloud builds submit --tag europe-west1-docker.pkg.dev/events-explorer-448816/events-db-repo/events-explorer-ui:v1 .
+gcloud builds submit --tag gcr.io/[PROJECT_NAME]/[REPO_NAME]/events-explorer-ui:latest .
 ```
 ```
 gcloud run deploy events-explorer-ui \
-    --image europe-west1-docker.pkg.dev/events-explorer-448816/events-db-repo/events-explorer-ui:v1 \
+    --image gcr.io/[PROJECT_NAME]/[REPO_NAME]/events-explorer-ui:latest \
     --platform managed \
     --region europe-west1 \
     --port 8501 \
