@@ -135,6 +135,8 @@ def write_events_to_db(location, events):
 
 @retry(exceptions=(Exception), retries=4, delay=10, backoff=2)
 def dedup_events_per_location(event_location):
+    logger.info(f"Deduplicating events for location {event_location}")
+    
     events = firestore_helper.get_events_by_location(event_location)
 
     prompt = DEDUPLICATE_EVENTS.format(events=str(events))
@@ -149,12 +151,13 @@ def dedup_events_per_location(event_location):
     
     deleted_events = 0
     for event in duplicate_events:
-        v(f'Deleting duplicate entries for event name {event["name"]} start date {event["start_date"]} end date {event["end_date"]} address {event["address"]}')
+        logger.info(f'Deleting duplicate entries for event name {event["name"]} start date {event["start_date"]} end date {event["end_date"]} address {event["address"]}')
         
         if(len(event["duplicate_ids"]) < 2):
             logger.warning(f"Less than two duplicate_id encountered")
             continue
         
+        # Leave the first event, and delete its duplicates
         for duplicate_id in event["duplicate_ids"][1:]:
             logger.info(f"Deleting duplicate id {duplicate_id}")
             firestore_helper.delete_event_by_id(event_location, duplicate_id)
@@ -163,9 +166,9 @@ def dedup_events_per_location(event_location):
     logger.info("Deleted events", deleted_events)
 
 @app.command()
-def main(priority: Annotated[str, typer.Argument(help="Priority of the locations to be scanned (high/medium/low). Leave blank for all.")] = None,
-         days_since_last_scan: Annotated[int, typer.Argument(help="Number of days since last scan")] = 30,
-         verify_events: Annotated[bool, typer.Argument(help="Verify each event with another LLM call")] = False):
+def main(priority: Annotated[str, typer.Option(prompt=True, help="Priority of the locations to be scanned (high/medium/low/all)")] = "high",
+         days_since_last_scan: Annotated[int, typer.Option(prompt=True, help="Number of days since last scan")] = 30,
+         verify_events: Annotated[bool, typer.Option(help="Verify each event with another LLM call")] = False):
     
     logger.info(f"Scanning locations with priority {priority} and last scan days {days_since_last_scan} with verify set to {verify_events}")
 

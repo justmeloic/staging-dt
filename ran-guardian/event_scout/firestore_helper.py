@@ -22,7 +22,7 @@ def get_locations(priority: str, days_since_last_scan: int) -> list[str]:
 
     num_days_ago = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=days_since_last_scan)
 
-    if priority:
+    if priority != "all":
         docs = db.collection('locations').where(filter=FieldFilter("priority", "==", priority)).where(filter=FieldFilter("last_scanned", "<", num_days_ago)).stream()
     else:
         docs = db.collection('locations').where(filter=FieldFilter("last_scanned", "<", num_days_ago)).stream()
