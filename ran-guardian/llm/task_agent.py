@@ -19,6 +19,7 @@ from llm.tools import run_node_command
 from llm.utils import strip_markdown
 from llm.prompt_manager import PromptManager
 
+
 prompt_manager = PromptManager()
 
 logger = logging.getLogger(__name__)
@@ -31,7 +32,7 @@ class TaskAgent:
         self,
         system_instructions: str,
         node_id: str,
-        model_name: Optional[str] = "gemini-1.5-pro",
+        model_name: Optional[str] = "gemini-1.5-flash",
     ) -> None:
         self.model_name = model_name
         self.chat_history = [
@@ -148,7 +149,120 @@ def activate_mlb(node_id: str) -> str:
         agent.set_up()
         messages = agent.run_workflow()
         response = strip_markdown(messages[-1].content)
-        return strip_markdown(messages[-1].content)
+        return response
+    except:
+        logger.error("Failed to execute task", exc_info=True)
+        raise
+
+
+@tool
+def deactivate_ca(node_id: str) -> str:
+    """Deactivate CA for a node"""
+    activate_mlb_prompt = prompt_manager.get_prompt("deactivate_ca", node_id=node_id)
+    agent = TaskAgent(system_instructions=activate_mlb_prompt, node_id=node_id)
+    try:
+        agent.set_up()
+        messages = agent.run_workflow()
+        response = strip_markdown(messages[-1].content)
+        return response
+    except:
+        logger.error("Failed to execute task", exc_info=True)
+        raise
+
+
+@tool
+def change_dss(node_id: str) -> str:
+    """Change DSS for a node"""
+    activate_mlb_prompt = prompt_manager.get_prompt("change_dss", node_id=node_id)
+    agent = TaskAgent(system_instructions=activate_mlb_prompt, node_id=node_id)
+    try:
+        agent.set_up()
+        messages = agent.run_workflow()
+        response = strip_markdown(messages[-1].content)
+        return response
+    except:
+        logger.error("Failed to execute task", exc_info=True)
+        raise
+
+
+@tool
+def deactivate_pdcch_power_boost(node_id: str) -> str:
+    """Deactivate PDCCH Power Boost for node"""
+    activate_mlb_prompt = prompt_manager.get_prompt(
+        "deactivate_pdcch_power_boost", node_id=node_id
+    )
+    agent = TaskAgent(system_instructions=activate_mlb_prompt, node_id=node_id)
+    try:
+        agent.set_up()
+        messages = agent.run_workflow()
+        response = strip_markdown(messages[-1].content)
+        return response
+    except:
+        logger.error("Failed to execute task", exc_info=True)
+        raise
+
+
+@tool
+def enhance_dsplit_threshold(node_id: str) -> str:
+    """Enhance dsplitThreshold for node"""
+    activate_mlb_prompt = prompt_manager.get_prompt(
+        "enhance_dsplit_threshold", node_id=node_id
+    )
+    agent = TaskAgent(system_instructions=activate_mlb_prompt, node_id=node_id)
+    try:
+        agent.set_up()
+        messages = agent.run_workflow()
+        response = strip_markdown(messages[-1].content)
+        return response
+    except:
+        logger.error("Failed to execute task", exc_info=True)
+        raise
+
+
+@tool
+def enhance_resource_allocation(node_id: str) -> str:
+    """Enhance resource allocation for node"""
+    activate_mlb_prompt = prompt_manager.get_prompt(
+        "enhance_resource_allocation", node_id=node_id
+    )
+    agent = TaskAgent(system_instructions=activate_mlb_prompt, node_id=node_id)
+    try:
+        agent.set_up()
+        messages = agent.run_workflow()
+        response = strip_markdown(messages[-1].content)
+        return response
+    except:
+        logger.error("Failed to execute task", exc_info=True)
+        raise
+
+
+@tool
+def increase_tilt_value(node_id: str) -> str:
+    """Increase cell tilt value"""
+    activate_mlb_prompt = prompt_manager.get_prompt(
+        "increase_tilt_value", node_id=node_id
+    )
+    agent = TaskAgent(system_instructions=activate_mlb_prompt, node_id=node_id)
+    try:
+        agent.set_up()
+        messages = agent.run_workflow()
+        response = strip_markdown(messages[-1].content)
+        return response
+    except:
+        logger.error("Failed to execute task", exc_info=True)
+        raise
+
+
+@tool
+def decrease_power(node_id: str) -> str:
+    """Decrease cell power"""
+    activate_mlb_prompt = prompt_manager.get_prompt("decrease_power", node_id=node_id)
+    agent = TaskAgent(system_instructions=activate_mlb_prompt, node_id=node_id)
+    try:
+        agent.set_up()
+        messages = agent.run_workflow()
+        response = strip_markdown(messages[-1].content)
+        return response
     except:
         logger.error("Failed to execute task", exc_info=True)
         raise

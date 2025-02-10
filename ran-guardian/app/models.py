@@ -1,8 +1,11 @@
-from pydantic import BaseModel, Field
-from typing import List, Optional, Dict
+import uuid
 from datetime import datetime
 from enum import Enum
-import uuid
+from typing import Any, Dict, List, NamedTuple, Optional
+
+from langchain_core.messages import BaseMessage
+from langgraph.types import StateSnapshot
+from pydantic import BaseModel, Field
 
 
 class IssueStatus(str, Enum):
@@ -69,6 +72,7 @@ class Event(BaseModel):
             )
 
         except (ValueError, TypeError, KeyError) as e:
+            print(e)
             # print(f"Error converting document {doc_id}: {e}")
             # print(f"Problematic data: {doc_data}")
             return None
@@ -80,6 +84,7 @@ class NodeData(BaseModel):
     capacity: int
 
 
+# TODO: need to be updated to match the description in data_generator
 class PerformanceData(BaseModel):
     node_id: str
     timestamp: datetime
@@ -88,6 +93,7 @@ class PerformanceData(BaseModel):
     # Various performance metrics
 
 
+# TODO: need to modify to better fit alarm data
 class Alarm(BaseModel):
     alarm_id: str
     node_id: str
@@ -96,6 +102,21 @@ class Alarm(BaseModel):
     cleared_at: Optional[datetime] = None
     alarm_type: str
     description: str
+
+
+class TaskStatus(str, Enum):
+    DONE = "done"
+    FAILED = "failed"
+    EXECUTING = "executing"
+    SCHEDULED = "scheduled"
+
+
+class Task(BaseModel):
+    name: str
+    status: TaskStatus
+    node_id: str
+    executed_at: Optional[datetime] = None
+    commands: Optional[list[str]] = None
 
 
 class IssueSnapshot(BaseModel):
@@ -123,6 +144,7 @@ class Issue(BaseModel):
     updated_at: datetime = Field(default_factory=datetime.now)
     updates: List[IssueUpdate] = Field(default_factory=list)  # Simplified history
     summary: Optional[str] = None
+    tasks: Optional[list[Task]] = None
 
 
 class RiskLevel(str, Enum):
@@ -156,3 +178,8 @@ class ConfigSuggestion(BaseModel):
 class ResolutionResult(BaseModel):
     is_resolved: bool
     confidence: float
+
+
+class AgentHistory(BaseModel):
+    chat_history: Optional[list[BaseMessage]] = list()
+    task_history: Optional[list[Task]] = list()

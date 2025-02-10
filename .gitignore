@@ -7,7 +7,10 @@ ran-guardian/data/
 *.env
 *.ipynb_checkpoints/
 *.ipynb
+<<<<<<< HEAD
+=======
 .env
 *key.json
 *.log
 
+>>>>>>> main

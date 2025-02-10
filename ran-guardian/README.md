@@ -14,7 +14,7 @@ poetry install
 # Create People Events DB
 
 ```
-poetry run python ran_guardian/run_event_scout.py 
+poetry run python ran_guardian/run_event_scout.py
 ```
 
 # Set up Events Explorer UI as a Cloud Run service
@@ -30,14 +30,14 @@ gcloud run deploy events-explorer-ui \
     --set-env-vars GOOGLE_APPLICATION_CREDENTIALS_CONTENT="$(base64 ../events_explorer_key.json)" \
     --set-env-vars KEY1=VALUE1,KEY2=VALUE2
 ```
+# Run FastAPI for mock data server
+In another terminal
+```
+poetry run uvicorn data_generator.main:app --reload --port 8001
+```
 
-# Run FastAPI and test endpoint
+# Run FastAPI for backend
 First in one terminal start the server
 ```
 poetry run uvicorn app.main:app --reload
-``` 
-
-Then, open a new terminal, and run the pytest
-```
-poetry run pytest
 ```
