@@ -1,7 +1,9 @@
-from google.cloud import storage
-from google.cloud import bigquery
-import pandas as pd
+# sample code, no use
 import io
+
+import pandas as pd
+from google.cloud import bigquery, storage
+
 
 def process_csv_to_bigquery(
     bucket_name,
@@ -9,7 +11,7 @@ def process_csv_to_bigquery(
     dataset_id,
     table_id,
     project_id,
-    if_exists='replace'  # Options: 'replace', 'append', 'fail'
+    if_exists="replace",  # Options: 'replace', 'append', 'fail'
 ):
     # Initialize clients
     storage_client = storage.Client(project=project_id)
@@ -21,14 +23,13 @@ def process_csv_to_bigquery(
     # Check if table exists
     try:
         bigquery_client.get_table(table_ref)
-        if if_exists == 'fail':
+        if if_exists == "fail":
             raise ValueError(f"Table {table_ref} already exists!")
-        write_disposition = {
-            'replace': 'WRITE_TRUNCATE',
-            'append': 'WRITE_APPEND'
-        }.get(if_exists)
+        write_disposition = {"replace": "WRITE_TRUNCATE", "append": "WRITE_APPEND"}.get(
+            if_exists
+        )
     except Exception:  # Table doesn't exist
-        write_disposition = 'WRITE_EMPTY'
+        write_disposition = "WRITE_EMPTY"
 
     # Get the blob from GCS
     bucket = storage_client.bucket(bucket_name)
@@ -40,19 +41,22 @@ def process_csv_to_bigquery(
     # Read CSV with custom parameters
     df = pd.read_csv(
         io.BytesIO(content),
-        sep=';',  # Custom separator
-        decimal=',',  # European decimal format
-        escapechar='\\',  # Handle escaping of special characters
-        encoding='utf-8',
+        sep=";",  # Custom separator
+        decimal=",",  # European decimal format
+        escapechar="\\",  # Handle escaping of special characters
+        encoding="utf-8",
         quotechar='"',  # Handle quotes around fields
-        doublequote=True  # Handle double quotes within quoted fields
+        doublequote=True,  # Handle double quotes within quoted fields
     )
 
     # Clean column names - replace problematic characters
     # This creates a mapping of original to clean names
     original_columns = df.columns
     clean_columns = {
-        col: col.replace('.', '_').replace('%', 'pct').replace('[', '_').replace(']', '_')
+        col: col.replace(".", "_")
+        .replace("%", "pct")
+        .replace("[", "_")
+        .replace("]", "_")
         for col in original_columns
     }
 
@@ -65,29 +69,28 @@ def process_csv_to_bigquery(
         # Infer data type (you might want to customize this based on your needs)
         dtype = df[column].dtype
         if pd.api.types.is_numeric_dtype(dtype):
-            if 'int' in str(dtype):
-                field_type = 'INTEGER'
+            if "int" in str(dtype):
+                field_type = "INTEGER"
             else:
-                field_type = 'FLOAT'
+                field_type = "FLOAT"
         else:
-            field_type = 'STRING'
+            field_type = "STRING"
 
         schema.append(bigquery.SchemaField(column, field_type))
 
     # Update job config with write disposition
     job_config = bigquery.LoadJobConfig(
-        schema=schema,
-        write_disposition=write_disposition
+        schema=schema, write_disposition=write_disposition
     )
 
     # Convert DataFrame to newline-delimited JSON for loading
-    json_data = df.to_json(orient='records', lines=True)
+    json_data = df.to_json(orient="records", lines=True)
 
     # Load the data - convert string to bytes
     job = bigquery_client.load_table_from_file(
-        io.BytesIO(json_data.encode('utf-8')),  # Convert to bytes
+        io.BytesIO(json_data.encode("utf-8")),  # Convert to bytes
         table_ref,
-        job_config=job_config
+        job_config=job_config,
     )
 
     # Wait for the job to complete
@@ -97,6 +100,7 @@ def process_csv_to_bigquery(
 
     # Return mapping of original to clean column names for reference
     return clean_columns
+
 
 # Example usage
 if __name__ == "__main__":
@@ -108,11 +112,7 @@ if __name__ == "__main__":
     TABLE_ID = "your_table"
 
     column_mapping = process_csv_to_bigquery(
-        BUCKET_NAME,
-        BLOB_NAME,
-        DATASET_ID,
-        TABLE_ID,
-        PROJECT_ID
+        BUCKET_NAME, BLOB_NAME, DATASET_ID, TABLE_ID, PROJECT_ID
     )
 
     print("\nColumn name mapping:")

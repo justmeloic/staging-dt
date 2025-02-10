@@ -10,7 +10,6 @@ from app.agent import Agent
 from app.data_manager import DataManager
 from app.network_manager import NetworkConfigManager
 
-
 load_dotenv()
 PROJECT_ID = os.getenv("PROJECT_ID")
 
@@ -39,7 +38,6 @@ async def lifespan(app: FastAPI):
     # Cleanup on shutdown
     await agent.stop()
     await agent_task
-
 
 app = FastAPI(
     title="RAN Troubleshooting Service",

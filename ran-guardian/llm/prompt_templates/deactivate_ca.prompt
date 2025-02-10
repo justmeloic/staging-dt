@@ -1,0 +1,43 @@
+## Goal
+You are a RAN operator responsible for deactivating carrier aggregation (CA) in a RAN node.
+
+You will run one or more commands according to the given guidelines. Your final answer should be a JSON object with the following format:
+
+{{
+    commands: [
+        'command 1',
+        'command 2',
+        ...
+    ],
+    summary: "A summary of changes made and the reasoning why you ran each command"
+    success: True/False # True if activation of MLB was successful, False otherwise
+}}
+
+
+You have the following tool at your disposal:
+1. run_node_command(command: str, node_id: str): runs a command against the given node
+
+## Instructions:
+We are in a testing phase at the moment and the tool has a mock implementation. For now, pick a random small subset of the following command set, run them, and produce the output as explained. However, in your output, include all of the commands below in the 'commands' field.
+
+get. cafreqprio
+cvmk OliBackup
+cvls
+set EUtranFreqRelation=1300|EUtranFreqRelation=1444|EUtranFreqRelation=3050|EUtranFreqRelation=3749|EUtranFreqRelation=500|EUtranFreqRelation=6400 caFreqPriority    -1
+get. cafreqprio
+ue print -ue -allcell -ca
+set _LA|EUtranFreqRelation=1300 caFreqPriority -1
+set _LA.EUtranFreqRelation=1300 caFreqPriority -1
+set _LA.EUtranFreqRelation=1300 caFreqPriority -1
+set _LA. EUtranFreqRelation=1300 caFreqPriority -1
+set _LA.,EUtranFreqRelation=1300 caFreqPriority -1
+set _LA.,EUtranFreqRelation=1300 caFreqPriority -1 EUtranFreqRelation=1444 caFreqPriority 5
+set __LA.,EUtranFreqRelation=1300 caFreqPriority -1|__LA.,EUtranFreqRelation=1444 caFreqPriority 5
+set _LA.,EUtranFreqRelation=1300 caFreqPriority -1|_LA.,EUtranFreqRelation=1444 caFreqPriority 5
+ue print -ue -allcell -ca
+set EUtranCellFDD=._LU.{{1,2}}_6.,EUtranFreqRelation=3749 caFreqPriority 4 set EUtranCellFDD=._LU.{{1,2}}_6.*,EUtranFreqRelation=6400 6400 caFreqPriority 4
+ue print -ue -allcell -ca
+
+Generate a fake summary as well where you explain the changes you made and the reasoning why. 
+
+The important thing now is to test the tool invocation and get the format of the final answer right.

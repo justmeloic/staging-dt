@@ -1,16 +1,23 @@
 import asyncio
 import logging
 import os
-from typing import List, Dict, Optional, Set
-from datetime import datetime, timedelta
+from collections import deque
 from dataclasses import dataclass
-from app.models import IssueStatus, Event, PerformanceData, Issue, ValidationResult
-from app.llm_helper import LLMHelper, Risk
+from datetime import datetime, timedelta
+from typing import Dict, List, Optional, Set
+
 from app.data_manager import DataManager
+from app.llm_helper import LLMHelper, Risk
+from app.models import (
+    AgentHistory,
+    Event,
+    Issue,
+    IssueStatus,
+    PerformanceData,
+    ValidationResult,
+)
 from app.network_manager import NetworkConfigManager
 from llm.reasoning_agent import ReasoningAgent
-from collections import deque
-
 
 logger = logging.getLogger(__name__)
 
@@ -19,6 +26,7 @@ logger = logging.getLogger(__name__)
 class AgentConfig:
     run_interval: int = 0.1  # minutes
     lookforward_period: int = 24  # hours
+    monitoring_period: int = 15  # minutes
 
 
 class AgentLogger:
@@ -69,13 +77,23 @@ class Agent:
 
     async def _run(self):
         """Internal method to run periodic tasks"""
-        logger.info("Running agent...")
-        logger.info("Running agent...")
+        await self.logger.log(
+            event_id="NA",
+            step="monitor",
+            level="info",
+            message="Starting agent main loop",
+        )
         while True:
             try:
                 await self._process_cycle()
             except Exception as e:
-                self.logger.error(f"Error in agent loop: {e}", exc_info=True)
+                await self.logger.log(
+                    event_id="NA",
+                    step="post-mortem",
+                    level="error",
+                    message=f"Error in agent loop: {e}",
+                    exc_info=True,
+                )
             await asyncio.sleep(self.config.run_interval * 60)
 
     async def _process_cycle(self):
@@ -94,14 +112,22 @@ class Agent:
         await self.logger.log("info", "Finished agent processing cycle")
 
     async def _get_events(self) -> List[Event]:
-        """Retrieves upcoming events within the lookforward period.
-
-        Returns:
-            A list of Event objects representing upcoming events.
-        """
+        await self.logger.log(
+            event_id="NA",
+            step="prepare",
+            level="info",
+            message="Fetching events from data manager",
+        )
         start_time = datetime.now()
         end_time = start_time + timedelta(hours=self.config.lookforward_period)
         return await self.data_manager.get_events(start_time, end_time)
+
+    async def _event_has_remediation_in_progress(self, event: Event) -> bool:
+        # Find issue from event
+        # Check updated_at
+        # If updated_at < 15 min ago, skip and process next event
+        # or, if issue status is not "resolved"
+        return False
 
     async def _process_event(self, event: Event):
         """Processes a single event and creates an issue if necessary.
@@ -174,13 +200,16 @@ class Agent:
                 logger.error(
                     "Something went wrong while creating an issue document in Firestore"
                 )
-                logger.error(
-                    "Something went wrong while creating an issue document in Firestore"
-                )
                 return
 
             await self._handle_issue(issue_id)
 
+        await self.logger.log(
+            event_id=event.event_id,
+            step="post-mortem",
+            level="info",
+            message=f"Finished processing event {event.event_id}",
+        )
         return False
 
     async def _create_issue(
@@ -293,28 +322,24 @@ class Agent:
         )
 
         logger.info("Checking for existing checkpoints...")
-        checkpoint = await self.data_manager.load_checkpoint(issue_id)
-        if checkpoint:
+        snapshot = await self.data_manager.load_agent_snapshot(issue_id)
+        history = await self.data_manager.load_agent_history(issue_id)
+
+        if snapshot:
             logger.info(
                 f"Checkpoint found for issue {issue_id}. Agent will resume work..."
             )
-            ai_agent.load_checkpoint(checkpoint[0])
-            ai_agent.load_chat_history(checkpoint[1])
+            ai_agent.load_state(snapshot, history)
 
         ai_agent.set_up()
 
         await ai_agent.run_workflow()
 
-        checkpoint = await ai_agent.get_checkpoint()
-        chat_history = ai_agent.get_chat_history()
+        snapshot = await ai_agent.get_snapshot()
+        history = ai_agent.get_history()
 
-        logger.info("Saving checkpoint to Firestore...")
-        await self.data_manager.save_checkpoint(issue_id, checkpoint, chat_history)
-
-    async def _handle_approved_issue_resolution(self, issue_id: str):
-        # TODO:
-        # Step 1. Retrieve network config action
-        pass
+        logger.info("Saving agent state...")
+        await self.data_manager.save_agent_checkpoint(issue_id, snapshot, history)
 
     async def _update_status(self, issue_id: str, status: IssueStatus, message: str):
         """Update issue status with message"""

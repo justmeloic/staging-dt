@@ -44,7 +44,8 @@ class LLMHelper:
 
     async def evaluate_severity(self, issue: Dict) -> bool:
         """Evaluate if an issue requires human attention"""
-        return True if random.random() < 0.5 else False
+        # return True if random.random() < 0.1 else False
+        return False
 
     async def evaluate_resolution_success(
         self, issue: Dict, performance_data: List[Dict]
