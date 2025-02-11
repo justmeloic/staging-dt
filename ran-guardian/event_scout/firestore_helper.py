@@ -56,7 +56,7 @@ def get_global_stats() -> dict:
 def get_num_scanned_locations(num_days: int = 90) -> int:
     """Returns the number of locations scanned in the last num_days days."""
 
-    num_days_ago = datetime.now(datetime.timezone.utc) - timedelta(days=num_days)
+    num_days_ago = datetime.now(timezone.utc) - timedelta(days=num_days)
     docs = db.collection("locations").where(
         filter=FieldFilter("last_scanned", ">=", num_days_ago)
         ).stream()

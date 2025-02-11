@@ -12,7 +12,7 @@ stats = firestore_helper.get_global_stats()
 num_events = str(stats["num_events"])
 num_locations = str(stats["num_locations"])
 st.sidebar.header(f":primary[AI Discovered Events:] :primary-background[{num_events}]")
-st.sidebar.header(f":primary[New Events (last 24 hours):] :primary-background[656]")
+# st.sidebar.header(f":primary[New Events (last 24 hours):] :primary-background[656]")
 st.sidebar.header(f":primary[Locations Scanned:] :primary-background[{firestore_helper.get_num_scanned_locations()}/{num_locations}]")
 st.sidebar.text("")
 
