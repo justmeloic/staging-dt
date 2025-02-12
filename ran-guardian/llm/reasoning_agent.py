@@ -45,7 +45,8 @@ from llm.utils import (
     update_issue_status,
 )
 
-logger = logging.getLogger(__name__)
+log_formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
+
 
 AUTOMATIC_TOOLS = [
     "monitor_node_metrics",
@@ -117,19 +118,30 @@ class ReasoningAgent:
             bucket_name=os.environ.get("BUCKET_NAME", "ran-guardian-data"),
             logs_location=os.environ.get("AGENT_LOGS_LOCATION", "agent-logs"),
             issue_id=issue.issue_id,
+            node_id=node_id,
             agent_name="SUPERVISOR AGENT",
         )
 
         if staging_bucket and not staging_bucket.startswith("gs://"):
             staging_bucket = f"gs://{staging_bucket}"
 
+        self.logger = logging.getLogger(__name__)
+        self.logger.setLevel(logging.INFO)
+
+        if os.environ.get("DEBUG_REASONING_AGENT", "false") == "true":
+            self.handler = logging.FileHandler(
+                f"agent_{issue.issue_id}_{node_id}.log", mode="w"
+            )
+            self.handler.setFormatter(log_formatter)
+            self.logger.addHandler(self.handler)
+
         # Initialize Vertex AI client library
-        logger.debug("Initializing Vertex AI client library...")
+        self.logger.debug("Initializing Vertex AI client library...")
         vertexai.init(project=project, location=location, staging_bucket=staging_bucket)
 
     def set_up(self) -> None:
         """Sets up the LangGraph workflow and the LLM model."""
-        logger.debug("Setting up workflow graph...")
+        self.logger.debug("Setting up workflow graph...")
         model = ChatVertexAI(
             model=os.environ.get("GEMINI_MODEL_NAME", "gemini-2.0-flash"),
             safety_settings={
@@ -182,7 +194,7 @@ class ReasoningAgent:
 
         builder.set_entry_point("main_agent")
 
-        logger.debug("Compiling graph...")
+        self.logger.debug("Compiling graph...")
         self.runnable = builder.compile(
             checkpointer=MemorySaver(), store=InMemoryStore()
         )
@@ -228,7 +240,7 @@ class ReasoningAgent:
         """Loads the given checkpoint into the agent's config."""
 
         self.config = snapshost.config
-        logger.info(f"\n\Loaded config {self.config}")
+        self.logger.info(f"Loaded config {self.config}")
 
     def _get_chat_history(self) -> list[BaseMessage]:
         """Returns a copy of the chat history excluding the last message."""
@@ -272,7 +284,7 @@ class ReasoningAgent:
                 self.chat_history, config=self.config
             ):
                 for _, output in output_dict.items():
-                    logger.info(format_message(output))
+                    self.logger.info(format_message(output))
                     self.gcs_logger.log(format_message(output))
                     if isinstance(
                         output, (SystemMessage, HumanMessage, AIMessage, ToolMessage)
@@ -280,7 +292,7 @@ class ReasoningAgent:
                         if any([output.content, output.tool_calls]):
                             new_messages.append(output)
                         else:
-                            logger.warning("Got an empty message")
+                            self.logger.warning("Got an empty message")
 
                         if isinstance(output, ToolMessage):
                             self._process_task_tool_response(output[0])
@@ -296,10 +308,10 @@ class ReasoningAgent:
                         self._process_task_tool_response(output[0])
 
                     elif isinstance(output, list) and not len(output):
-                        logger.warning("Got an empty list as response")
+                        self.logger.warning("Got an empty list as response")
 
                     else:
-                        logger.warning(
+                        self.logger.warning(
                             f"Got an unexpected message of type {type(output)}\n. Message: {output}\n\n"
                         )
 
@@ -334,13 +346,15 @@ class ReasoningAgent:
             if not success:
                 task_status = TaskStatus.FAILED
         except Exception as e:  # tool response did not include a success field
-            logger.warning(f"Couldn't parse tool output to check if it was successful")
+            self.logger.warning(
+                f"Couldn't parse tool output to check if it was successful"
+            )
             success = (
                 response.status == "success"
             )  # will be the case if the tool invocation itself succeeded
             if success:
                 # Tool Invocation succeeded but we can't be sure that the execution was successful
-                logger.warning(
+                self.logger.warning(
                     f"It's possible that task {response.name} did not succeed"
                 )
                 task_status = TaskStatus.DONE
@@ -368,7 +382,10 @@ class ReasoningAgent:
     async def _router(
         self,
         state: list[BaseMessage],
-    ) -> Literal["tools", "__end__",]:
+    ) -> Literal[
+        "tools",
+        "__end__",
+    ]:
         """
         Defines the routing logic for the LangGraph workflow.
 
@@ -385,7 +402,9 @@ class ReasoningAgent:
         if not tool_calls and len(state) > 1:
             try:
                 tool_calls = state[-2].tool_calls
-                logger.warning("No tool calls but the message before was a tool call")
+                self.logger.warning(
+                    "No tool calls but the message before was a tool call"
+                )
                 state.pop()  # remove from state
                 self.chat_history.pop()  # remove from history
             except:
@@ -394,7 +413,7 @@ class ReasoningAgent:
         issue_status = await check_issue_status(issue_id)
 
         if issue_status == "resolved":
-            logger.info(
+            self.logger.info(
                 "[Issue: {issue_id} | Main agent | Router] Issue already resolved."
             )
             return END
@@ -420,7 +439,7 @@ class ReasoningAgent:
             # Check if we're about to enter monitoring phase
             if tool_name == "monitor_node_metrics" and issue_status != "monitoring":
                 await update_issue_status(issue_id, "monitoring")
-                logger.info(
+                self.logger.info(
                     "[Issue: {issue_id} | Main agent | Router] Updating issue status to monitoring. End of workflow"
                 )
                 self.gcs_logger.log("[Router] Updating issue status to monitoring")
@@ -434,25 +453,25 @@ class ReasoningAgent:
                     return END
 
                 if issue_status == "monitoring":
-                    logger.info(
+                    self.logger.info(
                         "[Issue: {issue_id} | Main agent | Router] Resuming workflow for node after monitoring"
                     )
                     self.gcs_logger.log("[Router] Updating issue status to analyzing")
                     await update_issue_status(issue_id, "analyzing")
 
-                logger.info(
+                self.logger.info(
                     f"[Issue: {issue_id} | Main agent | Router] Routing to tool ({tool_name})"
                 )
                 return "tools"
             else:  # TOOLS THAT REQUIRE APPROVAL
                 if issue_status == "approved":
-                    logger.info(
+                    self.logger.info(
                         f"[Issue: {issue_id} | Main agent | Router] Routing to tool ({tool_name})"
                     )
 
                     return "tools"
                 elif issue_status == "analyzing":
-                    logger.info(
+                    self.logger.info(
                         f"[Issue: {issue_id} | Main agent | Router] Tool is not approved for execution. Updating Issue status to pending approval..."
                     )
 
@@ -460,7 +479,7 @@ class ReasoningAgent:
                         "[Router] Tool is not approved for execution. Updating Issue status to pending approval..."
                     )
                     await update_issue_status(issue_id, "pending_approval")
-                    logger.info(
+                    self.logger.info(
                         f"[Issue: {issue_id} | Main agent | Router] End of workflow"
                     )
 
@@ -473,7 +492,7 @@ class ReasoningAgent:
                     print(
                         f"[Issue: {issue_id} | Main agent | Router] Issue status is {issue_status}. Will not execute tool."
                     )
-                    logger.info("[Router] End of workflow")
+                    self.logger.info("[Router] End of workflow")
                     self.gcs_logger.log(
                         f"[Router] Issue status is {issue_status}. Will not execute tool."
                     )
@@ -481,7 +500,7 @@ class ReasoningAgent:
 
         else:
             # End the conversation flow.
-            logger.info(
+            self.logger.info(
                 f"\n\n[Issue: {issue_id} | Main agent | Router] No tool call found. Last Message: {state[-1]}"
             )
             self.gcs_logger.log(f"[Router] No tool call found. Ending workflow")
