@@ -33,6 +33,7 @@ class AgentConfig:
     run_interval: int = 5  # minutes
     lookforward_period: int = 24  # hours
     monitoring_period: int = 15  # minutes
+    concurrency_limit: int = 5  # max. num of reasoning agents to run concurrently
 
 
 class AgentLogger:
@@ -80,6 +81,7 @@ class Agent:
         self.last_run = datetime.now()
         self._task: Optional[asyncio.Task] = None
         self.logger = AgentLogger()
+        self.agent_semaphore = asyncio.Semaphore(self.config.concurrency_limit)
 
     async def _run(self):
         """Internal method to run periodic tasks"""
@@ -320,42 +322,105 @@ class Agent:
             },
         )
 
+    async def _process_node_with_ai_agent(self, issue_id: str, node_id: str) -> None:
+        """Process a single node with a ReasoningAgent instance.
+
+        This helper method handles the creation and execution of a ReasoningAgent
+        for a single node while respecting the concurrency limit.
+        """
+        async with self.agent_semaphore:  # Using semaphore to limit concurrent executions
+            logger.info(f"Starting ReasoningAgent for node {node_id}")
+            await self.logger.log(
+                "info",
+                f"Starting ReasoningAgent for node {node_id}",
+                issue_id=issue_id,
+                node_id=node_id,
+            )
+
+            try:
+                ai_agent = ReasoningAgent(
+                    project=os.environ.get("PROJECT_ID"),
+                    location=os.environ.get("VERTEXAI_LOCATION"),
+                    issue=await self.data_manager.get_issue(issue_id),
+                    node_id=node_id,
+                )
+
+                # Check for existing checkpoints
+                snapshot = await self.data_manager.load_agent_snapshot(
+                    issue_id, node_id
+                )
+                history = await self.data_manager.load_agent_history(issue_id, node_id)
+
+                if snapshot:
+                    logger.info(
+                        f"Checkpoint found for issue {issue_id}, node {node_id}. Agent will resume work..."
+                    )
+                    ai_agent.load_state(snapshot, history)
+
+                ai_agent.set_up()
+                await ai_agent.run_workflow()
+
+                # Save agent state
+                snapshot = await ai_agent.get_snapshot()
+                history = ai_agent.get_history()
+                await self.data_manager.save_agent_checkpoint(
+                    issue_id=issue_id,
+                    node_id=node_id,
+                    snapshot=snapshot,
+                    history=history,
+                )
+
+            except Exception as e:
+                logger.error(f"Error processing node {node_id}", exc_info=True)
+                await self.logger.log(
+                    "error",
+                    f"Error processing node {node_id}: {str(e)}",
+                    issue_id=issue_id,
+                    node_id=node_id,
+                )
+
     async def _handle_automatic_resolution(self, issue_id: str):
         """Handle issues that can be automatically resolved"""
         logger.info(f"Handling automatic resolution for issue {issue_id}...")
         issue = await self.data_manager.get_issue(issue_id)
-        logger.info(f"Dispatching issue {issue_id} to AI agent.")
+
+        if not issue.node_ids:
+            logger.warning(f"No nodes found for issue {issue_id}")
+            return
+
+        logger.info(
+            f"Processing {len(issue.node_ids)} nodes with concurrency limit of {self.config.concurrency_limit}"
+        )
         await self.logger.log(
             "info",
-            f"Dispatching issue {issue_id} to AI agent",
+            f"Starting parallel processing of {len(issue.node_ids)} nodes",
             issue_id=issue_id,
         )
-        ai_agent = ReasoningAgent(
-            project=os.environ.get("PROJECT_ID"),
-            location=os.environ.get("VERTEXAI_LOCATION"),
-            issue=issue,
-            node_id=issue.node_ids[0],  # TODO! need to loop through the
-        )
 
-        logger.info("Checking for existing checkpoints...")
-        snapshot = await self.data_manager.load_agent_snapshot(issue_id)
-        history = await self.data_manager.load_agent_history(issue_id)
+        # Create tasks for all nodes with concurrency control
+        tasks = [
+            asyncio.create_task(self._process_node_with_ai_agent(issue_id, node_id))
+            for node_id in issue.node_ids
+        ]
 
-        if snapshot:
-            logger.info(
-                f"Checkpoint found for issue {issue_id}. Agent will resume work..."
+        # Wait for all tasks to complete
+        # NOTE: this could potentially take several minutes to complete
+        try:
+            await asyncio.gather(*tasks)
+        except Exception as e:
+            logger.error(f"Error during node processing: {str(e)}", exc_info=True)
+            await self.logger.log(
+                "error",
+                f"Error during node processing: {str(e)}",
+                issue_id=issue_id,
             )
-            ai_agent.load_state(snapshot, history)
 
-        ai_agent.set_up()
-
-        await ai_agent.run_workflow()
-
-        snapshot = await ai_agent.get_snapshot()
-        history = ai_agent.get_history()
-
-        logger.info("Saving agent state...")
-        await self.data_manager.save_agent_checkpoint(issue_id, snapshot, history)
+        logger.info(f"Completed processing all nodes for issue {issue_id}")
+        await self.logger.log(
+            "info",
+            "Completed processing all nodes",
+            issue_id=issue_id,
+        )
 
     async def start(self):
         """Start the periodic task runner"""

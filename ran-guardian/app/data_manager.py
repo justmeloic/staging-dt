@@ -568,12 +568,13 @@ class DataManager:
     async def save_agent_checkpoint(
         self,
         issue_id: str,
+        node_id: str,
         snapshot: StateSnapshot,
         history: Optional[AgentHistory] = None,
     ) -> None:
         """Save agent workflow state and history (chat, tasks)"""
         logger.info(
-            f"Starting function: DataManager.save_agent_checkpoint, issue_id: {issue_id}"
+            f"Starting function: DataManager.save_agent_checkpoint, issue_id: {issue_id}, node_id: {node_id}"
         )
 
         bucket_name = os.environ.get("BUCKET_NAME")
@@ -584,8 +585,8 @@ class DataManager:
 
         client = storage.Client()
         bucket = client.bucket(bucket_name)
-        snapshot_blob = bucket.blob(f"{checkpoints_location}/{issue_id}_snapshot.pkl")
-        history_blob = bucket.blob(f"{checkpoints_location}/{issue_id}_history.pkl")
+        snapshot_blob = bucket.blob(f"{checkpoints_location}/{issue_id}_{node_id}_snapshot.pkl")
+        history_blob = bucket.blob(f"{checkpoints_location}/{issue_id}_{node_id}_history.pkl")
         logger.debug(
             f"Snapshot blob path: {snapshot_blob.path}, history blob path: {history_blob.path}"
         )
@@ -595,15 +596,14 @@ class DataManager:
 
         snapshot_blob.upload_from_string(pickle.dumps(snapshot))
         history_blob.upload_from_string(pickle.dumps(chat_history))
-        logger.info(f"Saved agent snapshot and history to GCS for issue: {issue_id}")
+        logger.info(f"Saved agent snapshot and history to GCS for issue: {issue_id} and node: {node_id}")
 
         await self.update_issue(
             issue_id, {"tasks": [t.model_dump_json() for t in task_history]}
         )
-        logger.info(f"Updated issue document with tasks history for issue: {issue_id}")
         logger.info(f"Finished function: DataManager.save_agent_checkpoint")
 
-    async def load_agent_snapshot(self, issue_id: str) -> StateSnapshot:
+    async def load_agent_snapshot(self, issue_id: str, node_id: str) -> StateSnapshot:
         """Retrieves a saved agent state if it exists, otherwise returns None"""
         logger.info(
             f"Starting function: DataManager.load_agent_snapshot, issue_id: {issue_id}"
@@ -617,7 +617,7 @@ class DataManager:
         )
 
         bucket = client.bucket(bucket_name)
-        snapshot_blob = bucket.blob(f"{checkpoints_location}/{issue_id}_snapshot.pkl")
+        snapshot_blob = bucket.blob(f"{checkpoints_location}/{issue_id}_{node_id}_snapshot.pkl")
         logger.debug(f"Snapshot blob path: {snapshot_blob.path}")
 
         if not snapshot_blob.exists():
@@ -632,7 +632,7 @@ class DataManager:
         logger.info(f"Finished function: DataManager.load_agent_snapshot")
         return snapshot_data
 
-    async def load_agent_history(self, issue_id: str) -> Optional[AgentHistory]:
+    async def load_agent_history(self, issue_id: str, node_id: str) -> Optional[AgentHistory]:
         """Retrieves a saved agent state if it exists, otherwise returns None"""
         logger.info(
             f"Starting function: DataManager.load_agent_history, issue_id: {issue_id}"
@@ -647,7 +647,7 @@ class DataManager:
 
         bucket = client.bucket(bucket_name)
         chat_history_blob = bucket.blob(
-            f"{checkpoints_location}/{issue_id}_history.pkl"
+            f"{checkpoints_location}/{issue_id}_{node_id}_history.pkl"
         )
         logger.debug(f"Chat history blob path: {chat_history_blob.path}")
 
