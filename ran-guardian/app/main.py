@@ -1,14 +1,14 @@
-from dotenv import load_dotenv
-from fastapi import FastAPI
 import asyncio
-import os
 import logging
+import os
 from contextlib import asynccontextmanager
 
-from app.routes import router
 from app.agent import Agent
 from app.data_manager import DataManager
 from app.network_manager import NetworkConfigManager
+from app.routes import router
+from dotenv import load_dotenv
+from fastapi import FastAPI
 
 load_dotenv()
 PROJECT_ID = os.getenv("PROJECT_ID")
@@ -40,6 +40,7 @@ async def lifespan(app: FastAPI):
     if os.environ.get("START_AGENT_ON_STARTUP", "true") == "true":
         await agent.stop()
         await agent_task
+
 
 app = FastAPI(
     title="RAN Troubleshooting Service",

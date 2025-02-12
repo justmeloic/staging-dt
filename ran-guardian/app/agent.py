@@ -1,15 +1,14 @@
 import asyncio
 import logging
 import os
+import random
 from collections import deque
 from dataclasses import dataclass
-from collections import deque
-from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional, Set
 
 import numpy as np
-from app.data_manager import DataManager
+from app.data_manager import TIME_INTERVAL, DataManager
 from app.llm_helper import LLMHelper
 from app.models import (
     AgentHistory,
@@ -33,7 +32,6 @@ logger = logging.getLogger(__name__)
 class AgentConfig:
     run_interval: int = 5  # minutes
     lookforward_period: int = 24  # hours
-    monitoring_period: int = 15  # minutes
     monitoring_period: int = 15  # minutes
 
 
@@ -85,78 +83,52 @@ class Agent:
 
     async def _run(self):
         """Internal method to run periodic tasks"""
-        await self.logger.log(
-            event_id="NA",
-            step="monitor",
-            level="info",
-            message="Starting agent main loop",
-        )
-        await self.logger.log(
-            event_id="NA",
-            step="monitor",
-            level="info",
-            message="Starting agent main loop",
-        )
         while True:
             try:
-                await self._process_cycle()
+                await self._process_event_cycle()
+                await self.data_manager.sort_issues()
+                await self._process_issue_cycle()
             except Exception as e:
-                await self.logger.log(
-                    event_id="NA",
-                    step="post-mortem",
-                    level="error",
-                    message=f"Error in agent loop: {e}",
-                    exc_info=True,
-                )
-                await self.logger.log(
-                    event_id="NA",
-                    step="post-mortem",
-                    level="error",
-                    message=f"Error in agent loop: {e}",
-                    exc_info=True,
-                )
+                logger.error(f"Something went wrong {e}")
+
             await asyncio.sleep(self.config.run_interval * 60)
 
-    async def _process_cycle(self):
+    async def _process_event_cycle(self):
         """Run a single processing cycle"""
         self.last_run = datetime.now()
-        logger.info("Starting agent processing cycle")
-        await self.logger.log("info", "Starting agent processing cycle")
+        logger.info("Starting event processing cycle")
 
         events = await self._get_events()
         logger.info(f"Found {len(events)} events to process")
-        await self.logger.log("info", f"Found {len(events)} events to process")
 
         await asyncio.gather(*[self._process_event(event) for event in events])
+        logger.info("Finished event processing cycle")
 
-        logger.info("Finished agent processing cycle")
-        await self.logger.log("info", "Finished agent processing cycle")
+    async def _process_issue_cycle(self):
+        """Run a single processing cycle"""
+        issues = await self.data_manager.get_issues()
+        issue_tasks = [self._process_issue(issue) for issue in issues]
+        asyncio.gather(*issue_tasks)
 
     async def _get_events(self, location: Optional[str] = None) -> List[Event]:
-        await self.logger.log(
-            event_id="NA",
-            step="prepare",
-            level="info",
-            message="Fetching events from data manager",
-        )
+        logger.info(f"Fetching events near location {location}...")
         start_time = datetime.now()
         end_time = start_time + timedelta(hours=self.config.lookforward_period)
-        return await self.data_manager.get_events(
+        events = await self.data_manager.get_events(
             start_time, end_time, location=location
         )
+        logger.info(f"Found {len(events)}")
+        return events
 
     async def _event_has_wip_issue(self, event: Event) -> bool:
         # Find issue from event
         # Check updated_at
         # If updated_at < 15 min ago, skip and process next event
         # or, if issue status is not "resolved"
-        if event.issue is None:
+        if event.issue_id is None:
             return False
-        if event.issue.status == IssueStatus.RESOLVED:
-            return False
-        if event.issue.updated_at < datetime.now() - timedelta(minutes=15):
-            return False
-        return True
+        else:
+            return True
 
     async def _process_event(self, event: Event):
         """Processes a single event and creates an issue if necessary.
@@ -174,51 +146,33 @@ class Agent:
         Returns:
             False. This function's return value is not used.
         """
-        if await self._event_has_wip_issue(event):
-            # do not process event if it already has an issue
+        # the data manager get event from bigquery which is different than the event data base
+        # this should be fixed!
+        if not await self.data_manager.get_event(event.event_id):
             return
-
-        logger.info(f"Finding nearby nodes for event {event.event_id}")
-        nodes = await self.data_manager.get_nearby_nodes(event.location)
-
-        logger.info(f"Found {len(nodes)} nearby nodes")
-
-        node_summary_tasks = [self._get_node_summary(node=node) for node in nodes]
-        node_summaries = await asyncio.gather(*node_summary_tasks)
-
-        event_risk = await self._evaluate_event_risk(
-            event=event, node_summaries=node_summaries
-        )
-
-        if event_risk.risk_level == RiskLevel.HIGH:
-            recommendation = await self._create_recommendation(event_risk)
-            issue_id = await self._create_issue(
-                event, event_risk, node_summaries, recommendation
-            )
-            await self._handle_human_intervention(issue_id)
-        elif event_risk.risk_level == RiskLevel.MEDIUM:
-            issue_id = await self._create_issue(event, event_risk, node_summaries)
-            await self._handle_automatic_resolution(issue_id)
         else:
-            # if event is low risk, do nothin
-            pass
+            logger.info(f"Processing event {event.event_id} ...")
 
-        await self.logger.log(
-            event_id=event.event_id,
-            step="post-mortem",
-            level="info",
-            message=f"Finished processing event {event.event_id}",
-        )
-        return False
+            if await self._event_has_wip_issue(event):
+                # update the issue with the latest event information
+                # do not process event if it already has an issue
+                return
 
-    # TODO: make sure that nodes are processed parallelly
-    # using output here https://aistudio.google.com/app/prompts/1uWEYHmB0yJQhBR0zIWd_dYXfAZ2dfwLe?resourceKey=0-2iBAs1mFr_W4UO2EfxDTcg
+            event_risk = await self._evaluate_event_risk(event=event)
+
+            if event_risk.risk_level != RiskLevel.LOW:
+                recommendation = await self._create_recommendation(event_risk)
+                issue_id = await self._create_issue(event, event_risk, recommendation)
+                await self.data_manager.update_event(
+                    event.event_id, {"issue_id": issue_id}
+                )
+            else:
+                # if event is low risk, do nothing for now
+                pass
+
     # TODO: need to understand how capacity is distributed on each node (Node should actually be sites ... )
 
-    async def _evaluate_event_risk(
-        self, event: Event, node_summaries: List[NodeSummary]
-    ) -> EventRisk:
-        # TODO: use Gemini to implement the decision process
+    async def _evaluate_event_risk(self, event: Event) -> EventRisk:
         """
         - if the combined capacity of the nodes is enough to cover even
         - if there's on-going alarm for the site
@@ -231,10 +185,25 @@ class Agent:
 
         Then decide if the risk level is high or medium or low
         """
+
+        # TODO: use Gemini to implement the decision process
+
+        # gather node data
+        logger.info(f"Evaluating risk for event {event.event_id}...")
+
+        nodes = await self.data_manager.get_nearby_nodes(event.location)
+        node_summary_tasks = [self._get_node_summary(node=node) for node in nodes]
+        node_summaries = await asyncio.gather(*node_summary_tasks)
+
+        # calculate if capacity is enough
         total_capacity = sum(node.capacity for node in node_summaries)
         # is_enough_capacity = total_capacity >= event.size # need to convert size into a numeric value
 
-        risk_level = np.random.choice([RiskLevel.HIGH, RiskLevel.MEDIUM, RiskLevel.LOW])
+        # some magic happens with gemini toe determine the risk level and description
+        risk_level = random.choice([RiskLevel.HIGH, RiskLevel.MEDIUM, RiskLevel.LOW])
+
+        logger.info("Finished evaluating risk for event...")
+
         return EventRisk(
             event_id=event.event_id,
             node_summaries=node_summaries,
@@ -256,11 +225,14 @@ class Agent:
             timestamp=datetime.now(),
         )
 
+    # TODO: make sure that nodes are processed parallelly
+    # using output here https://aistudio.google.com/app/prompts/1uWEYHmB0yJQhBR0zIWd_dYXfAZ2dfwLe?resourceKey=0-2iBAs1mFr_W4UO2EfxDTcg
+    # TODO: need to understand how capacity is distributed on each node (Node should actually be sites ... )
+
     async def _create_issue(
         self,
         event: Event,
         event_risk: EventRisk,
-        node_summaries: List[NodeSummary] = [],
         recommendation: Optional[str] = None,
     ) -> str | None:
         """Creates an issue based on valid validation summaries.
@@ -278,33 +250,79 @@ class Agent:
             The Firestore document ID of the created issue if at least one validation summary is valid.
             Returns None if no valid summaries are provided, meaning no issue was created.
         """
+        logger.info(f"Creating issue for event {event.event_id}...")
+        # sumary should be generated by gemini, taking into account the risk and node summaries
+        return await self.data_manager.create_issue(
+            event=event, event_risk=event_risk, summary="mock summary"
+        )
 
-        issue = {
-            "event_id": event.event_id,
-            "node_ids": [
-                s.node_id for s in node_summaries if node_summaries.is_problematic
-            ],  # Assuming ValidationResult has node_id
-            "status": IssueStatus.NEW,
-            "summary": "Mock summary",
-            # sumary should be generated by gemini, taking into account the risk and node summaries
-        }
-        return await self.data_manager.create_issue(issue)
+    async def _process_issue(self, issue: Issue):
+        logger.info(f"Processing issue {issue.issue_id}...")
+        # based on the issue risk level
+        # create recommendation
+        # either handover to human
+        # or automatic resolution
+        event_updates = {}
+
+        if issue.updated_at.tzinfo:
+            time_threshold = datetime.now(timezone.utc) - timedelta(
+                minutes=TIME_INTERVAL
+            )
+        else:
+            time_threshold = datetime.now() - timedelta(minutes=TIME_INTERVAL)
+
+        if issue.updated_at < time_threshold or (issue.event_risk is None):
+            event = await self.data_manager.get_event(issue.event_id)
+            if not event:
+                # if not event exists anymore then delete the issue and return
+                # await self.data_manager.delete_issue(issue.issue_id)
+                return
+
+            event_risk = await self._evaluate_event_risk(event=event)
+        else:
+            event_risk = issue.event_risk
+        event_updates["event_risk"] = event_risk.model_dump()
+        await self.data_manager.update_issue(issue.issue_id, updates=event_updates)
+
+        # if issue 's data is outdated, then update the latest data (node summary, )
+        if await self._evaluate_if_human_intervention(issue):
+            await self._handle_human_intervention(issue.issue_id)
+        else:
+            await self._handle_automatic_resolution(issue.issue_id)
+
+        logger.info(f"Finished processing issue {issue.issue_id}...")
+
+    async def _evaluate_if_human_intervention(self, issue: Issue) -> bool:
+        logger.info("Evaluating if human intervention is needed...")
+        # replace with some gemini magic here
+        if not (issue.node_ids):
+            # if we don't find any nodes near the issue
+            return True
+        else:
+            return True if np.random.rand() < 0.5 else False
 
     async def _create_recommendation(self, event_risk: EventRisk) -> str:
+        logger.info(
+            "Creating recommendation for network reconfiguration based on the event..."
+        )
+        # replace with some gemini magic here)
         return "mock recommendation"
 
     async def _handle_human_intervention(self, issue_id: str):
+        logger.info("Handling human intervention...")
         """Handle issues requiring human intervention"""
 
-        await self._update_status(
+        await self.data_manager.update_issue(
             issue_id,
-            IssueStatus.PENDING_APPROVAL,
-            "Awaiting human approval before any action is taken",
+            updates={
+                "status": IssueStatus.PENDING_APPROVAL,
+                "summary": "Awaiting human approval before any action is taken",
+            },
         )
 
     async def _handle_automatic_resolution(self, issue_id: str):
         """Handle issues that can be automatically resolved"""
-        logger.info("Fetching issue data...")
+        logger.info(f"Handling automatic resolution for issue {issue_id}...")
         issue = await self.data_manager.get_issue(issue_id)
         logger.info(f"Dispatching issue {issue_id} to AI agent.")
         await self.logger.log(
@@ -316,6 +334,7 @@ class Agent:
             project=os.environ.get("PROJECT_ID"),
             location=os.environ.get("VERTEXAI_LOCATION"),
             issue=issue,
+            node_id=issue.node_ids[0],  # TODO! need to loop through the
         )
 
         logger.info("Checking for existing checkpoints...")
@@ -338,20 +357,16 @@ class Agent:
         logger.info("Saving agent state...")
         await self.data_manager.save_agent_checkpoint(issue_id, snapshot, history)
 
-    async def _update_status(self, issue_id: str, status: IssueStatus, message: str):
-        """Update issue status with message"""
-        await self.data_manager.update_issue(
-            issue_id, {"status": status.value, "summary": message}
-        )
-
     async def start(self):
         """Start the periodic task runner"""
+        logger.info("Starting agent...")
         if self._task is None:
             self._task = asyncio.create_task(self._run())
             logger.info("Agent started")
 
     async def stop(self):
         """Stop the periodic task runner"""
+        logger.info("Stopping agent...")
         if self._task is not None:
             self._task.cancel()
             try:
@@ -363,4 +378,5 @@ class Agent:
 
     async def run_once(self):
         """Internal method to run periodic tasks"""
-        await self._process_cycle()
+        await self._process_event_cycle()
+        await self._process_issue_cycle()

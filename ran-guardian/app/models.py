@@ -1,8 +1,8 @@
 import uuid
-import uuid
 from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, NamedTuple, Optional
+
 from langchain_core.messages import BaseMessage
 from langgraph.types import StateSnapshot
 from pydantic import BaseModel, Field
@@ -75,7 +75,6 @@ class Event(BaseModel):
 
         except (ValueError, TypeError, KeyError) as e:
             print(e)
-            print(e)
             # print(f"Error converting document {doc_id}: {e}")
             # print(f"Problematic data: {doc_data}")
             return None
@@ -103,7 +102,6 @@ class PerformanceData(BaseModel):
     # Various performance metrics
 
 
-# TODO: need to modify to better fit alarm data
 # TODO: need to modify to better fit alarm data
 class Alarm(BaseModel):
     alarm_id: str
@@ -158,8 +156,11 @@ class IssueUpdate(BaseModel):
 
 
 class Issue(BaseModel):
-    issue_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    issue_id: str = Field(
+        default_factory=lambda: str(uuid.uuid4())
+    )  # maybe we can just use the same id?
     event_id: str
+    # need to add event start and end date to better sort issues
     event_risk: Optional["EventRisk"] = None
     node_ids: list[str]
     status: IssueStatus = IssueStatus.NEW
@@ -167,7 +168,6 @@ class Issue(BaseModel):
     updated_at: datetime = Field(default_factory=datetime.now)
     updates: List[IssueUpdate] = Field(default_factory=list)  # Simplified history
     summary: Optional[str] = None
-    tasks: Optional[list[Task]] = None
     tasks: Optional[list[Task]] = None
 
 
@@ -177,6 +177,7 @@ class RiskLevel(str, Enum):
     HIGH = "high"
 
 
+# output of evaluate event risk
 class EventRisk(BaseModel):
     event_id: str
     node_summaries: List[NodeSummary]
@@ -196,5 +197,3 @@ class ResolutionResult(BaseModel):
 class AgentHistory(BaseModel):
     chat_history: Optional[list[BaseMessage]] = list()
     task_history: Optional[list[Task]] = list()
-
-
