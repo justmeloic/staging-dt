@@ -3,18 +3,25 @@ import logging
 import os
 from collections import deque
 from dataclasses import dataclass
+from collections import deque
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Set
 
+import numpy as np
 from app.data_manager import DataManager
-from app.llm_helper import LLMHelper, Risk
+from app.llm_helper import LLMHelper
 from app.models import (
     AgentHistory,
     Event,
+    EventRisk,
     Issue,
     IssueStatus,
+    NodeData,
+    NodeSummary,
     PerformanceData,
-    ValidationResult,
+    RiskLevel,
+    Site,
 )
 from app.network_manager import NetworkConfigManager
 from llm.reasoning_agent import ReasoningAgent
@@ -24,8 +31,9 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class AgentConfig:
-    run_interval: int = 0.1  # minutes
+    run_interval: int = 5  # minutes
     lookforward_period: int = 24  # hours
+    monitoring_period: int = 15  # minutes
     monitoring_period: int = 15  # minutes
 
 
@@ -83,10 +91,23 @@ class Agent:
             level="info",
             message="Starting agent main loop",
         )
+        await self.logger.log(
+            event_id="NA",
+            step="monitor",
+            level="info",
+            message="Starting agent main loop",
+        )
         while True:
             try:
                 await self._process_cycle()
             except Exception as e:
+                await self.logger.log(
+                    event_id="NA",
+                    step="post-mortem",
+                    level="error",
+                    message=f"Error in agent loop: {e}",
+                    exc_info=True,
+                )
                 await self.logger.log(
                     event_id="NA",
                     step="post-mortem",
@@ -111,7 +132,7 @@ class Agent:
         logger.info("Finished agent processing cycle")
         await self.logger.log("info", "Finished agent processing cycle")
 
-    async def _get_events(self) -> List[Event]:
+    async def _get_events(self, location: Optional[str] = None) -> List[Event]:
         await self.logger.log(
             event_id="NA",
             step="prepare",
@@ -120,14 +141,22 @@ class Agent:
         )
         start_time = datetime.now()
         end_time = start_time + timedelta(hours=self.config.lookforward_period)
-        return await self.data_manager.get_events(start_time, end_time)
+        return await self.data_manager.get_events(
+            start_time, end_time, location=location
+        )
 
-    async def _event_has_remediation_in_progress(self, event: Event) -> bool:
+    async def _event_has_wip_issue(self, event: Event) -> bool:
         # Find issue from event
         # Check updated_at
         # If updated_at < 15 min ago, skip and process next event
         # or, if issue status is not "resolved"
-        return False
+        if event.issue is None:
+            return False
+        if event.issue.status == IssueStatus.RESOLVED:
+            return False
+        if event.issue.updated_at < datetime.now() - timedelta(minutes=15):
+            return False
+        return True
 
     async def _process_event(self, event: Event):
         """Processes a single event and creates an issue if necessary.
@@ -145,64 +174,34 @@ class Agent:
         Returns:
             False. This function's return value is not used.
         """
-        # event driven flow
+        if await self._event_has_wip_issue(event):
+            # do not process event if it already has an issue
+            return
+
         logger.info(f"Finding nearby nodes for event {event.event_id}")
         nodes = await self.data_manager.get_nearby_nodes(event.location)
 
         logger.info(f"Found {len(nodes)} nearby nodes")
 
-        ls_validation_summary = []
+        node_summary_tasks = [self._get_node_summary(node=node) for node in nodes]
+        node_summaries = await asyncio.gather(*node_summary_tasks)
 
-        # [vdantas] potentially data could be fetched from each node in parallel to speed up the process
-        # ... currently execution is mostly sequential.
-        for node in nodes:
-            logger.info(f"Processing node {node.node_id}")
-            await self.logger.log(
-                "info", f"Processing event {event.event_id} for node {node.node_id}"
+        event_risk = await self._evaluate_event_risk(
+            event=event, node_summaries=node_summaries
+        )
+
+        if event_risk.risk_level == RiskLevel.HIGH:
+            recommendation = await self._create_recommendation(event_risk)
+            issue_id = await self._create_issue(
+                event, event_risk, node_summaries, recommendation
             )
-
-            performance_data = await self.data_manager.get_performance_data(
-                node.node_id
-            )
-            await self.logger.log(
-                "debug",
-                f"The performance data for node {node.node_id} is {performance_data}",
-            )
-
-            alarm_data = await self.data_manager.get_alarms(node.node_id)
-            await self.logger.log(
-                "debug",
-                f"The performance data for node {node.node_id} is {performance_data}",
-            )
-
-            summary = await self.llm_helper.assess_node_event_risk(
-                event, performance_data, alarm_data, node
-            )
-            await self.logger.log(
-                "info",
-                f"Here is a summary of the data collected for node {node.node_id}: {summary}",
-            )
-
-            logger.info(f"Summary of data collected: {summary}")
-
-            ls_validation_summary.append(summary)
-
-        if any(summary.is_valid for summary in ls_validation_summary):
-            logger.info("Creating an issue...")
-            issue_id = await self._create_issue(event, ls_validation_summary)
-
-            logger.info(f"Issue ID {issue_id}")
-            await self.logger.log(
-                "info", f"Created issue {issue_id} for event {event.event_id}"
-            )
-
-            if not issue_id:
-                logger.error(
-                    "Something went wrong while creating an issue document in Firestore"
-                )
-                return
-
-            await self._handle_issue(issue_id)
+            await self._handle_human_intervention(issue_id)
+        elif event_risk.risk_level == RiskLevel.MEDIUM:
+            issue_id = await self._create_issue(event, event_risk, node_summaries)
+            await self._handle_automatic_resolution(issue_id)
+        else:
+            # if event is low risk, do nothin
+            pass
 
         await self.logger.log(
             event_id=event.event_id,
@@ -212,8 +211,57 @@ class Agent:
         )
         return False
 
+    # TODO: make sure that nodes are processed parallelly
+    # using output here https://aistudio.google.com/app/prompts/1uWEYHmB0yJQhBR0zIWd_dYXfAZ2dfwLe?resourceKey=0-2iBAs1mFr_W4UO2EfxDTcg
+    # TODO: need to understand how capacity is distributed on each node (Node should actually be sites ... )
+
+    async def _evaluate_event_risk(
+        self, event: Event, node_summaries: List[NodeSummary]
+    ) -> EventRisk:
+        # TODO: use Gemini to implement the decision process
+        """
+        - if the combined capacity of the nodes is enough to cover even
+        - if there's on-going alarm for the site
+        - if the performance is degrading
+
+        for example:
+        if [x, x, y] performance is already degrading, then it is high risk
+        if [y, y, n] then it is medium risk
+        if [y, n, n] then it's low risk
+
+        Then decide if the risk level is high or medium or low
+        """
+        total_capacity = sum(node.capacity for node in node_summaries)
+        # is_enough_capacity = total_capacity >= event.size # need to convert size into a numeric value
+
+        risk_level = np.random.choice([RiskLevel.HIGH, RiskLevel.MEDIUM, RiskLevel.LOW])
+        return EventRisk(
+            event_id=event.event_id,
+            node_summaries=node_summaries,
+            risk_level=risk_level,
+            description="mock description",
+        )
+
+    async def _get_node_summary(self, node: NodeData):
+        performance_data = await self.data_manager.get_performance_data(node.node_id)
+        alarm_data = await self.data_manager.get_alarms(node.site_id)
+        capacity = node.capacity
+
+        return NodeSummary(
+            node_id=node.node_id,
+            site_id=node.site_id,
+            performances=performance_data,
+            alarms=alarm_data,
+            capacity=capacity,
+            timestamp=datetime.now(),
+        )
+
     async def _create_issue(
-        self, event: Event, validation_summaries: List[ValidationResult] = []
+        self,
+        event: Event,
+        event_risk: EventRisk,
+        node_summaries: List[NodeSummary] = [],
+        recommendation: Optional[str] = None,
     ) -> str | None:
         """Creates an issue based on valid validation summaries.
 
@@ -230,71 +278,20 @@ class Agent:
             The Firestore document ID of the created issue if at least one validation summary is valid.
             Returns None if no valid summaries are provided, meaning no issue was created.
         """
-        valid_summaries = [s for s in validation_summaries if s.is_valid]
-        if not valid_summaries:
-            logger.info("No valid summaries")
-            return None
 
         issue = {
             "event_id": event.event_id,
             "node_ids": [
-                s.node_id for s in valid_summaries
+                s.node_id for s in node_summaries if node_summaries.is_problematic
             ],  # Assuming ValidationResult has node_id
             "status": IssueStatus.NEW,
-            "summary": "; ".join(s.summary for s in valid_summaries),
+            "summary": "Mock summary",
+            # sumary should be generated by gemini, taking into account the risk and node summaries
         }
         return await self.data_manager.create_issue(issue)
 
-    async def _handle_issue(self, issue_id: str):
-        """Handles the resolution workflow for a given issue.
-
-        This method determines whether an issue requires human intervention or can be
-        automatically resolved.  It orchestrates the following steps:
-
-        1. Retrieves the issue details from the data manager.
-        2. Evaluates the severity of the issue using the LLM helper.
-        3. Requests a network configuration proposal from the network manager.
-        4. If a configuration proposal is generated:
-            a. If human intervention is required, it updates the issue status to pending approval.
-            b. If automatic resolution is possible, it attempts to apply the configuration and updates the issue status accordingly.
-        5. If no configuration proposal is generated, it escalates the issue.
-
-        Args:
-            issue_id: The ID of the issue to handle.
-        """
-        """Handle issue resolution flow"""
-        logger.info(f"Handling issue {issue_id}")
-        await self.logger.log("info", f"Handling issue {issue_id}", issue_id=issue_id)
-
-        issue = await self.data_manager.get_issue(issue_id)
-        needs_human = await self.llm_helper.evaluate_severity(
-            issue.model_dump()  # Convert pydantic model to dict
-        )
-        if needs_human:
-            logger.info(f"Issue {issue_id} needs human intervention")
-        else:
-            logger.info(f"Issue {issue_id} can be automatically resolved")
-
-        await self.logger.log(
-            "info",
-            f"Issue {issue_id} needs human intervention: {needs_human}",
-            issue_id=issue_id,
-            needs_human=needs_human,
-        )
-
-        # config = await self.network_manager.get_network_config_proposal(issue_id)
-        # if not config:
-        #     await self._update_status(
-        #         issue_id,
-        #         IssueStatus.ESCALATE,
-        #         "Failed to generate network configuration",
-        #     )
-        #     return
-
-        if needs_human:
-            await self._handle_human_intervention(issue_id)
-        else:
-            await self._handle_automatic_resolution(issue_id)
+    async def _create_recommendation(self, event_risk: EventRisk) -> str:
+        return "mock recommendation"
 
     async def _handle_human_intervention(self, issue_id: str):
         """Handle issues requiring human intervention"""

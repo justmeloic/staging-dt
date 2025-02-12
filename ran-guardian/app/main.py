@@ -31,13 +31,15 @@ async def lifespan(app: FastAPI):
     app.state.agent = agent
 
     # Start agent task on startup
-    agent_task = asyncio.create_task(agent.start())
+    if os.environ.get("START_AGENT_ON_STARTUP", "true") == "true":
+        agent_task = asyncio.create_task(agent.start())
 
     yield  # Run FastAPI
 
     # Cleanup on shutdown
-    await agent.stop()
-    await agent_task
+    if os.environ.get("START_AGENT_ON_STARTUP", "true") == "true":
+        await agent.stop()
+        await agent_task
 
 app = FastAPI(
     title="RAN Troubleshooting Service",

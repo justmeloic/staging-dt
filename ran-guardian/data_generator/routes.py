@@ -12,7 +12,28 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
 # copy paste from app.models
 from google.cloud import bigquery, firestore, storage
+from google.cloud.bigquery import enums
 from pydantic import BaseModel, Field
+
+load_dotenv()
+
+PROJECT_ID = os.getenv("PROJECT_ID")
+BQ_DATASET_ID = os.getenv("BQ_DATASET_ID")
+
+# configuaration of the mock data's behavior
+TIME_INTERVAL = int(os.getenv("TIME_INTERVAL"))
+EVENT_PROBA = float(os.getenv("EVENT_PROBA"))
+
+
+logger = logging.getLogger(__name__)
+router = APIRouter()
+
+bq_client = bigquery.Client(project=PROJECT_ID, location="europe-west3")
+
+
+# -------------------
+# data types
+# -------------------
 
 
 class PerformanceData(BaseModel):
@@ -44,20 +65,9 @@ class NodeTimeRange(BaseModel):
     end_time: Optional[datetime] = None
 
 
-load_dotenv()
-
-PROJECT_ID = os.getenv("PROJECT_ID")
-BQ_DATASET_ID = os.getenv("BQ_DATASET_ID")
-
-# configuaration of the mock data's behavior
-TIME_INTERVAL = int(os.getenv("TIME_INTERVAL"))
-EVENT_PROBA = float(os.getenv("EVENT_PROBA"))
-
-
-logger = logging.getLogger(__name__)
-router = APIRouter()
-
-bq_client = bigquery.Client(project=PROJECT_ID, location="europe-west3")
+# -------------------
+# utility functions
+# -------------------
 
 
 def _shake(x, mode: str = "pct"):
@@ -70,13 +80,20 @@ def _shake(x, mode: str = "pct"):
         raise Exception("mode not implemented !")
 
 
-def _parse_node_id(node_id):
+def _parse_node_id(node_id: str):
     try:
         node_id = int(node_id)
         node_id = f"{node_id}.0"
         return node_id
     except ValueError:
-        logger.warning("node_id may not be well formated!")
+        try:
+            node_id = float(node_id)
+            node_id = f"{node_id:8.1f}"
+            return node_id
+        except ValueError:
+            logger.warning(
+                "node_id may not be well formated! It should be a string of 8 digit number (it may has a trailling .0)"
+            )
     finally:
         return node_id
 
@@ -96,7 +113,33 @@ def _parse_node_time_range(node_time_range: NodeTimeRange):
     return node_id, start_time, end_time
 
 
-@router.get("/performances", response_model=List[PerformanceData])  # Type hint
+def _run_query_job(node_id: str, hour_list: List[int], with_node=True):
+    table_name = "perf-summary" if with_node else "perf-summary-mean"
+    query = f"""
+        SELECT *
+        FROM `{PROJECT_ID}.{BQ_DATASET_ID}.{table_name}`
+        WHERE hour IN UNNEST(@hour_list)
+    """
+    query_parameters = [
+        bigquery.ArrayQueryParameter("hour_list", enums.SqlTypeNames.INT64, hour_list),
+    ]
+    if with_node:
+        query += f" AND `OSS-NodeID_Generic` = @oss_node_id"
+        query_parameters.append(
+            bigquery.ScalarQueryParameter("oss_node_id", "FLOAT64", node_id)
+        )
+
+    job_config = bigquery.QueryJobConfig(query_parameters=query_parameters)
+    job = bq_client.query(query, job_config=job_config)
+    return job
+
+
+# -------------------
+# end point definition
+# -------------------
+
+
+@router.post("/performances", response_model=List[PerformanceData])  # Type hint
 async def get_performance(
     node_time_range: NodeTimeRange,
 ):
@@ -119,41 +162,18 @@ async def get_performance(
     time_range = pd.date_range(
         start=start_time, end=end_time, freq=f"{TIME_INTERVAL}min"
     )
-    # TODO: generating mock data using hour matching will be problematic for 24->1 transition, but we ignore for now
-    query = f"""
-        SELECT *
-        FROM `{PROJECT_ID}.{BQ_DATASET_ID}.perf-summary`
-        WHERE `OSS-NodeID_Generic` = @oss_node_id
-          AND hour >= @start_hour AND hour <= @end_hour
-    """
+    hour_list = [t.hour for t in time_range]
 
-    job_config = bigquery.QueryJobConfig(
-        query_parameters=[
-            bigquery.ScalarQueryParameter("oss_node_id", "FLOAT64", node_id),
-            bigquery.ScalarQueryParameter("start_hour", "INT64", start_time.hour),
-            bigquery.ScalarQueryParameter("end_hour", "INT64", end_time.hour),
-        ]
+    query_job = _run_query_job(
+        node_id=node_id, hour_list=hour_list, with_node=isinstance(node_id, float)
     )
-
     try:
-        query_job = bq_client.query(query, job_config=job_config)
         query_result = query_job.result()
         if query_result.total_rows == 0:
-            # sometimes the node cannot be found so we use another table as backup
-            query_mean = f"""
-                SELECT *
-                FROM `{PROJECT_ID}.{BQ_DATASET_ID}.perf-summary-mean`
-                WHERE hour >= @start_hour AND hour <= @end_hour
-            """
-            job_config = bigquery.QueryJobConfig(
-                query_parameters=[
-                    bigquery.ScalarQueryParameter(
-                        "start_hour", "INT64", start_time.hour
-                    ),
-                    bigquery.ScalarQueryParameter("end_hour", "INT64", end_time.hour),
-                ]
+            # if the node_id does not exist in the current data, then run a query which is node_id independent
+            query_job = _run_query_job(
+                node_id=node_id, hour_list=hour_list, with_node=False
             )
-            query_job = bq_client.query(query_mean, job_config=job_config)
             query_result = query_job.result()
 
         result_dict = {}
@@ -165,7 +185,7 @@ async def get_performance(
 
         for time in time_range:
             hour = time.hour
-            perf = result_dict.get(hour, None)
+            perf = result_dict.get(hour, {})
             perf_data.append(
                 PerformanceData(
                     node_id=str(node_id),
@@ -191,7 +211,7 @@ async def get_performance(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/alarms", response_model=List[Alarm])  # Type hint
+@router.post("/alarms", response_model=List[Alarm])  # Type hint
 async def get_alarms(node_time_range: NodeTimeRange):
     node_id, start_time, end_time = _parse_node_time_range(node_time_range)
 
@@ -210,13 +230,12 @@ async def get_alarms(node_time_range: NodeTimeRange):
         )
         WHERE row_num BETWEEN 1 AND {n_row};
     """
-    # TODO: we mock the data by randomly select one
+    # Note: we mock the data by randomly select one
     try:
         query_job = bq_client.query(query)
         alarm_data = []
 
         time_range = pd.date_range(start=start_time, end=end_time, freq=f"1D")
-        print(time_range)
 
         for row in query_job.result():
             row_dict = dict(row)
@@ -237,5 +256,4 @@ async def get_alarms(node_time_range: NodeTimeRange):
 
         return alarm_data
     except Exception as e:
-        print(f"An error occurred: {e}")
         raise HTTPException(status_code=500, detail=str(e))

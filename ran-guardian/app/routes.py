@@ -61,7 +61,8 @@ async def get_issue(
     issue_id: str, data_manager: DataManager = Depends(get_data_manager)
 ):
     """Get details of a specific issue"""
-    return await data_manager.get_issue(issue_id)
+    # return await data_manager.get_issue(issue_id)
+    return await data_manager.build_get_issue_response_payload(issue_id)
 
 
 @router.put("/issues/{issue_id}")
@@ -83,7 +84,7 @@ async def get_issue_stats(data_manager: DataManager = Depends(get_data_manager))
 
 
 @router.post("/issues/approve/{issue_id}")
-async def run_network_config_proposal(
+async def approve_issue(
     issue_id: str,
     message: Optional[str] = None,
     data_manager: DataManager = Depends(get_data_manager),
@@ -95,7 +96,7 @@ async def run_network_config_proposal(
 
 
 @router.post("/issues/reject/{issue_id}")
-async def run_network_config_proposal(
+async def reject_issue(
     issue_id: str,
     message: Optional[str] = None,
     data_manager: DataManager = Depends(get_data_manager),

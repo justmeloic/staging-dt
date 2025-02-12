@@ -42,7 +42,15 @@ def format_message(message: BaseMessage | list[BaseMessage]) -> str:
 
 
 async def get_sample_issue() -> Issue:
-    return await dm.get_issue("081168e3-6309-4b30-9526-18d66e1767b1")
+    sample_issue = Issue(
+        issue_id="sample-issue-1",
+        event_id="dummy-event",
+        node_ids=["node-1", "node-2"],
+        status=IssueStatus.NEW,
+        tasks=None,
+    )
+    await dm.create_issue_from_model(sample_issue)
+    return sample_issue
 
 
 async def get_issue(issue_id: str) -> Issue:
