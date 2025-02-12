@@ -1,4 +1,3 @@
-import asyncio
 import json
 import logging
 import os
@@ -8,7 +7,6 @@ from typing import Literal, Optional
 
 import vertexai
 from app.models import AgentHistory, Issue, Task, TaskStatus
-from google.cloud import firestore
 from langchain_core.messages import (
     AIMessage,
     BaseMessage,
@@ -43,11 +41,8 @@ from llm.tools import (
 from llm.utils import (
     check_issue_status,
     format_message,
-    get_issue,
-    get_sample_issue,
     strip_markdown,
     update_issue_status,
-    update_issue_status_and_summary,
 )
 
 logger = logging.getLogger(__name__)
@@ -80,20 +75,39 @@ pm = PromptManager()
 
 
 class ReasoningAgent:
+    """
+    A reasoning agent for managing and resolving network issues.
+
+    This agent uses a LangGraph workflow to determine and execute remediation actions
+    for a given network issue. It interacts with other, task-specific LLM Agents, that run
+    actions against a RAN node. The Reasoning Agent oversees the entire remediation workflow.
+    """
+
     def __init__(
         self,
         project: str,
         location: str,
         issue: Issue,
+        node_id: str,
         staging_bucket: Optional[str] = None,
     ) -> None:
+        """
+        Initializes the ReasoningAgent.
+
+        Args:
+            project: The Google Cloud project ID.
+            location: The location of the Vertex AI resources.
+            issue: The network issue to be addressed.
+            node_id: The ID of the affected node.
+            staging_bucket: Optional staging bucket for Vertex AI.
+        """
         self.project_id = project
         self.location = location
         self.issue = issue
         self.chat_history = [
             SystemMessage(content=pm.get_prompt("main_agent")),
             HumanMessage(
-                content=f"Proceed with remediation for issue ID {issue.issue_id} affecting node ID {issue.node_ids[0]}"
+                content=f"Proceed with remediation for issue ID {issue.issue_id} affecting node ID {node_id}"
             ),
         ]
         self.tasks = []
@@ -114,9 +128,10 @@ class ReasoningAgent:
         vertexai.init(project=project, location=location, staging_bucket=staging_bucket)
 
     def set_up(self) -> None:
+        """Sets up the LangGraph workflow and the LLM model."""
         logger.debug("Setting up workflow graph...")
         model = ChatVertexAI(
-            model="gemini-1.5-flash",
+            model=os.environ.get("GEMINI_MODEL_NAME", "gemini-2.0-flash"),
             safety_settings={
                 HarmCategory.HARM_CATEGORY_UNSPECIFIED: HarmBlockThreshold.BLOCK_NONE,
                 HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_NONE,
@@ -173,12 +188,22 @@ class ReasoningAgent:
         )
 
     async def get_snapshot(self) -> StateSnapshot:
-        """Get the current state of the agent."""
+        """
+        Retrieves the current state of the agent's workflow.
+
+        Returns:
+            A StateSnapshot object representing the current state.
+        """
         return await self.runnable.aget_state(self.config)
         # return self.runnable.get_state(self.config)
 
     def get_history(self) -> AgentHistory:
-        """Get the current state of the agent."""
+        """
+        Retrieves the chat and task history of the agent.
+
+        Returns:
+            An AgentHistory object containing the chat and task history.
+        """
         return AgentHistory(
             chat_history=self._get_chat_history(),
             task_history=self.tasks,
@@ -187,34 +212,44 @@ class ReasoningAgent:
     def load_state(
         self, snapshot: StateSnapshot, history: Optional[AgentHistory] = None
     ):
-        """Load the given state into the agent."""
+        """
+        Loads a previously saved state into the agent.
+
+        Args:
+            snapshot: The StateSnapshot object to load.
+            history (Optional): The AgentHistory object to load.
+        """
         self._load_snapshot(snapshot)
         if history:
             self._load_chat_history(history.chat_history)
             self._load_task_history(history.task_history)
 
     def _load_snapshot(self, snapshost: StateSnapshot):
-        """Load the given checkpoint into the agent's config."""
+        """Loads the given checkpoint into the agent's config."""
+
         self.config = snapshost.config
         logger.info(f"\n\Loaded config {self.config}")
 
     def _get_chat_history(self) -> list[BaseMessage]:
-        """Get the current chat history excluding the latest message entry"""
+        """Returns a copy of the chat history excluding the last message."""
         history = self.chat_history.copy()
         history.pop()
         return history
 
     def _load_chat_history(self, chat_history: list[BaseMessage]):
-        """Load the given chat history into the agent."""
+        """Loads the given chat history into the agent."""
         self.chat_history = chat_history
 
     def get_task_history(self) -> list[Task]:
+        """Returns the task history of the agent."""
         return self.tasks
 
     def _load_task_history(self, tasks: list[Task]):
+        """Loads the given task history into the agent."""
         self.tasks = tasks.copy() if tasks else []
 
     def update_task(self, task: Task) -> None:
+        """Updates or adds a task to the task history."""
         for i, tsk in enumerate(self.tasks):
             if tsk.name == task.name:  # task already in the list, just update values
                 self.tasks[i] = task
@@ -222,7 +257,12 @@ class ReasoningAgent:
         self.tasks.append(task)
 
     async def run_workflow(self) -> list[BaseMessage]:
-        """Run the agent's LangGraph workflow and returns new messages since starting history"""
+        """
+        Runs the agent's LangGraph workflow.
+
+        Returns:
+            A list of new messages generated during the workflow execution.
+        """
         if not self.runnable:
             raise RuntimeError("Agent not set up. Call set_up() first.")
 
@@ -276,6 +316,7 @@ class ReasoningAgent:
             raise
 
         finally:
+            # Write buffered logs to GCS
             self.gcs_logger.save_to_gcs()
 
     def _process_task_tool_response(self, response: ToolMessage) -> Task:
@@ -327,8 +368,19 @@ class ReasoningAgent:
     async def _router(
         self,
         state: list[BaseMessage],
-    ) -> Literal["tools", "__end__",]:
-        """Defines the conditional routing logic for the agent."""
+    ) -> Literal[
+        "tools",
+        "__end__",
+    ]:
+        """
+        Defines the routing logic for the LangGraph workflow.
+
+        Args:
+            state: The current state of the conversation.
+
+        Returns:
+            The next node in the workflow to execute.
+        """
         # Get the tool_calls from the last message in the conversation history.
         tool_calls = state[-1].tool_calls
         issue_id = self.issue.issue_id
@@ -368,9 +420,12 @@ class ReasoningAgent:
                     )
                 )
 
+            # Check if we're about to enter monitoring phase
             if tool_name == "monitor_node_metrics" and issue_status != "monitoring":
                 await update_issue_status(issue_id, "monitoring")
-                logger.info("[Issue: {issue_id} | Main agent | Router] End of workflow")
+                logger.info(
+                    "[Issue: {issue_id} | Main agent | Router] Updating issue status to monitoring. End of workflow"
+                )
                 self.gcs_logger.log("[Router] Updating issue status to monitoring")
                 return END
 
@@ -382,6 +437,10 @@ class ReasoningAgent:
                     return END
 
                 if issue_status == "monitoring":
+                    logger.info(
+                        "[Issue: {issue_id} | Main agent | Router] Resuming workflow for node after monitoring"
+                    )
+                    self.gcs_logger.log("[Router] Updating issue status to analyzing")
                     await update_issue_status(issue_id, "analyzing")
 
                 logger.info(
@@ -430,74 +489,3 @@ class ReasoningAgent:
             )
             self.gcs_logger.log(f"[Router] No tool call found. Ending workflow")
             return END
-
-
-if __name__ == "__main__":
-
-    logging.basicConfig(
-        filename="agent.log",
-        filemode="w",
-        format="%(asctime)s - %(levelname)s - %(message)s",
-        level=logging.INFO,
-    )
-
-    loop = asyncio.get_event_loop()
-
-    async def run_test():
-        sample_issue = await get_sample_issue()
-        a = ReasoningAgent(
-            project="de1000-dev-mwc-ran-agent",
-            location="us-central1",
-            issue=sample_issue,
-        )
-        a.set_up()
-        print(f">> Issue state:\n {sample_issue}\n")
-        await a.run_workflow()
-
-        # Save state before interruption
-        snapshot = await a.get_snapshot()
-        history = a.get_history()
-
-        logger.info("Monitoring...")
-        sleep(5)
-        logger.info("Continuing...")
-        issue = await get_issue(sample_issue.issue_id)
-        logger.info(f">> Issue state:\n {issue}\n")
-
-        new_agent = ReasoningAgent(
-            project="de1000-dev-mwc-ran-agent",
-            location="us-central1",
-            issue=issue,
-        )
-        new_agent.set_up()
-        new_agent.load_state(snapshot, history)
-
-        # Continue the workflow
-        await new_agent.run_workflow()
-
-        issue = await get_issue(sample_issue.issue_id)
-        logger.info(f">> Issue state:\n {issue}\n")
-
-        snapshot = await a.get_snapshot()
-        history = a.get_history()
-
-        ## Final stage
-
-        logger.info("Monitoring...")
-        sleep(5)
-        logger.info("Continuing...")
-        new_agent = ReasoningAgent(
-            project="de1000-dev-mwc-ran-agent",
-            location="us-central1",
-            issue=issue,
-        )
-        new_agent.set_up()
-        new_agent.load_state(snapshot, history)
-
-        # Continue the workflow
-        await new_agent.run_workflow()
-
-        issue = await get_issue(sample_issue.issue_id)
-        logger.info(f">> Final Issue state:\n {issue}\n")
-
-    loop.run_until_complete(run_test())

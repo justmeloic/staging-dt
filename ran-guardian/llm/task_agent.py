@@ -1,4 +1,5 @@
 import logging
+import os
 from typing import Literal, Optional
 from langchain_core.messages import (
     BaseMessage,
@@ -32,7 +33,9 @@ class TaskAgent:
         self,
         system_instructions: str,
         node_id: str,
-        model_name: Optional[str] = "gemini-1.5-flash",
+        model_name: Optional[str] = os.environ.get(
+            "GEMINI_MODEL_NAME", "gemini-2.0-flash"
+        ),
     ) -> None:
         self.model_name = model_name
         self.chat_history = [

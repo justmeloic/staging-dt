@@ -1,8 +1,8 @@
 import uuid
+import uuid
 from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, NamedTuple, Optional
-
 from langchain_core.messages import BaseMessage
 from langgraph.types import StateSnapshot
 from pydantic import BaseModel, Field
@@ -34,6 +34,7 @@ class Event(BaseModel):
     url: Optional[str]
     event_type: str
     size: str
+    issue_id: Optional[str] = None
 
     @classmethod
     def from_firestore_doc(cls, doc_id: str, doc_data: dict) -> Optional["Event"]:
@@ -69,9 +70,11 @@ class Event(BaseModel):
                 url=doc_data.get("url"),
                 event_type=doc_data.get("event_type"),
                 size=doc_data.get("size"),
+                issue_id=doc_data.get("issue_id"),
             )
 
         except (ValueError, TypeError, KeyError) as e:
+            print(e)
             print(e)
             # print(f"Error converting document {doc_id}: {e}")
             # print(f"Problematic data: {doc_data}")
@@ -84,6 +87,13 @@ class NodeData(BaseModel):
     capacity: int
 
 
+class Site(BaseModel):
+    site_id: str
+    name: str
+    location: Location
+    nodes: List[NodeData]
+
+
 # TODO: need to be updated to match the description in data_generator
 class PerformanceData(BaseModel):
     node_id: str
@@ -94,6 +104,7 @@ class PerformanceData(BaseModel):
 
 
 # TODO: need to modify to better fit alarm data
+# TODO: need to modify to better fit alarm data
 class Alarm(BaseModel):
     alarm_id: str
     node_id: str
@@ -102,6 +113,17 @@ class Alarm(BaseModel):
     cleared_at: Optional[datetime] = None
     alarm_type: str
     description: str
+
+
+class NodeSummary(BaseModel):
+    node_id: str
+    site_id: str
+    capacity: int
+    timestamp: datetime
+    performances: List[PerformanceData]
+    alarms: List[Alarm]
+    is_problematic: bool = False
+    summary: str = ""
 
 
 class TaskStatus(str, Enum):
@@ -138,12 +160,14 @@ class IssueUpdate(BaseModel):
 class Issue(BaseModel):
     issue_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     event_id: str
+    event_risk: Optional["EventRisk"] = None
     node_ids: list[str]
     status: IssueStatus = IssueStatus.NEW
     created_at: datetime = Field(default_factory=datetime.now)
     updated_at: datetime = Field(default_factory=datetime.now)
     updates: List[IssueUpdate] = Field(default_factory=list)  # Simplified history
     summary: Optional[str] = None
+    tasks: Optional[list[Task]] = None
     tasks: Optional[list[Task]] = None
 
 
@@ -153,22 +177,11 @@ class RiskLevel(str, Enum):
     HIGH = "high"
 
 
-class Risk(BaseModel):
+class EventRisk(BaseModel):
     event_id: str
-    node_id: str
+    node_summaries: List[NodeSummary]
     risk_level: RiskLevel
     description: str
-
-
-class RiskAnalysis(BaseModel):
-    identified_risks: List[Risk]
-
-
-class ValidationResult(BaseModel):
-    node_id: str
-    event_id: str
-    is_valid: bool
-    summary: str
 
 
 class ConfigSuggestion(BaseModel):
@@ -183,3 +196,5 @@ class ResolutionResult(BaseModel):
 class AgentHistory(BaseModel):
     chat_history: Optional[list[BaseMessage]] = list()
     task_history: Optional[list[Task]] = list()
+
+
