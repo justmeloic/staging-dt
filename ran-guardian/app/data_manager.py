@@ -2,7 +2,6 @@ import json
 import logging
 import os
 import pickle
-
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Tuple
 
@@ -11,13 +10,17 @@ import requests
 from app.models import (
     AgentHistory,
     Alarm,
-    Issue,
     Event,
+    EventRisk,
+    Issue,
     IssueStatus,
+    IssueUpdate,
     Location,
     NodeData,
+    NodeSummary,
     PerformanceData,
     Site,
+    StateSnapshot,
     Task,
 )
 from event_scout.firestore_helper import db as EVENT_DB
@@ -25,32 +28,19 @@ from event_scout.firestore_helper import get_locations
 from google.cloud import bigquery, firestore, storage
 from google.cloud.firestore_v1.base_query import FieldFilter
 
-from langchain_core.messages import BaseMessage
-from langgraph.types import StateSnapshot
-from pydantic import BaseModel, Field
-
-from google.cloud import bigquery, firestore, storage
-from google.cloud.firestore_v1.base_query import FieldFilter
-
-
 logger = logging.getLogger(__name__)
 
 MOCK_DATA_SERVER_URL = os.getenv("MOCK_DATA_SERVER_URL")
 TIME_INTERVAL = int(os.getenv("TIME_INTERVAL"))
-MAX_NUM_EVENTS = int(os.getenv("MAX_NUM_EVENTS", 10))
+MAX_NUM_EVENTS = int(os.getenv("MAX_NUM_EVENTS", 1))
 
 
 # utility functions.. TODO: Move to utilities
 def parse_date(date_str: str):
-    logger.info(f"Starting function: parse_date, date_str: {date_str}")
     try:
         date_object = datetime.strptime(date_str, "%Y-%m-%d").date()
-        logger.info(f"Successfully parsed date: {date_object}")
-        logger.info(f"Finished function: parse_date")
         return date_object
     except Exception as e:
-        logger.exception(f"Error parsing date string: {date_str}")
-        logger.info(f"Finished function: parse_date with error")
         return None
 
 
@@ -59,28 +49,18 @@ def check_date(
     start_date: Optional[datetime] = None,
     end_date: Optional[datetime] = None,
 ):
-    logger.info(
-        f"Starting function: check_date, date_str: {date_str}, start_date: {start_date}, end_date: {end_date}"
-    )
     # Potentially we can use Gemini to parse date and time in a more flexible way
     date_object = parse_date(date_str)
 
     if not date_object:
         logger.warning(f"Could not parse date string: {date_str}")
-        logger.info(
-            f"Finished function: check_date, returning False due to parsing failure"
-        )
         return False
 
     res = True
     if start_date:
         res = res & (date_object >= start_date)
-        logger.debug(f"Date check with start_date, result: {res}")
     if end_date:
         res = res & (date_object <= end_date)
-        logger.debug(f"Date check with end_date, result: {res}")
-
-    logger.info(f"Finished function: check_date, returning: {res}")
     return res
 
 
@@ -92,12 +72,7 @@ class DataManager:
         self.manager_db = firestore.Client(project=project_id, database=manager_db)
         self.bq_client = bigquery.Client(project=project_id, location="europe-west3")
         self.bq_event_db_name = f"{project_id}.events_db_de.people_events"
-        self.bq_event_db_name = f"{project_id}.events_db_de.people_events"
         self.event_db = EVENT_DB
-        logger.info(
-            f"DataManager initialized with project_id: {project_id}, bq_event_db_name: {self.bq_event_db_name}"
-        )
-        logger.info(f"Finished function: DataManager.__init__")
 
     # -------------------
     # Issue management
@@ -112,14 +87,31 @@ class DataManager:
         issues = []
         for doc in docs:
             doc_dict = doc.to_dict()
-            if doc_dict.get("tasks"):
-                doc_dict["tasks"] = [
-                    Task.model_validate_json(t) for t in doc_dict["tasks"]
-                ]
-            issues.append(Issue(**doc_dict))
+
+            try:
+                if "tasks" in doc_dict and doc_dict["tasks"]:
+                    doc_dict["tasks"] = [
+                        Task.model_validate_json(t) for t in doc_dict["tasks"]
+                    ]
+                if "event_risk" in doc_dict and doc_dict["event_risk"]:
+                    node_sum = doc_dict["event_risk"]["node_summaries"]
+                    node_sum = [NodeSummary.model_validate(n) for n in node_sum]
+                    doc_dict["event_risk"]["node_summaries"] = node_sum
+                    doc_dict["event_risk"] = EventRisk.model_validate(
+                        doc_dict["event_risk"]
+                    )
+
+                issues.append(Issue(**doc_dict))
+            except Exception as e:
+                logger.error(f"parsing issue got error {e}")
         logger.info(f"Retrieved {len(issues)} issues from Firestore")
-        logger.info(f"Finished function: DataManager.get_issues")
         return issues
+
+    async def sort_issues(self):
+        """
+        sort the issues based on their start and end date,
+        """
+        pass
 
     async def get_issue(self, issue_id: str) -> Optional[Issue]:
         """Retrieves issue data from Firestore"""
@@ -131,22 +123,36 @@ class DataManager:
             logger.info(f"Finished function: DataManager.get_issue, issue not found")
             return None
         doc_dict = doc.to_dict()
-        if doc_dict.get("tasks"):
-            doc_dict["tasks"] = [Task.model_validate_json(t) for t in doc_dict["tasks"]]
+        try:
+            if "tasks" in doc_dict and doc_dict["tasks"]:
+                doc_dict["tasks"] = [
+                    Task.model_validate_json(t) for t in doc_dict["tasks"]
+                ]
+            if "event_risk" in doc_dict and doc_dict["event_risk"]:
+                node_sum = doc_dict["event_risk"]["node_summaries"]
+                node_sum = [NodeSummary.model_validate(n) for n in node_sum]
+                doc_dict["event_risk"]["node_summaries"] = node_sum
+                doc_dict["event_risk"] = EventRisk.model_validate(
+                    doc_dict["event_risk"]
+                )
+        except Exception as e:
+            logger.error(f"parsing issue got error {e}")
 
         issue = Issue(**doc_dict)
         logger.info(f"Retrieved issue with id: {issue_id}")
         logger.info(f"Finished function: DataManager.get_issue")
         return issue
 
-    async def create_issue(self, event: Dict) -> str:
+    async def create_issue(
+        self, event: Event, event_risk: EventRisk, summary: str
+    ) -> str:
         # this function is probably not working well
         """Creates a new issue in Firestore with data provided in the dictionary. Returns issue_id."""
         logger.info(
-            f"Starting function: DataManager.create_issue, event_id: {event.get('event_id')}"
+            f"Starting function: DataManager.create_issue, event_id: {event.event_id}"
         )
-        issue_id = event.get("event_id")
-        event["issue_id"] = issue_id
+        issue_id = event.event_id  # using the same id as even
+        event.issue_id = issue_id
 
         issue_ref = self.manager_db.collection("issues").document(issue_id)
         doc = issue_ref.get()
@@ -159,19 +165,31 @@ class DataManager:
             if current_status == IssueStatus.RESOLVED.value:
                 # Reopen
                 updates = {
-                    "status": IssueStatus.NEW,
-                    "created_at": firestore.SERVER_TIMESTAMP,
-                    "updated_at": firestore.SERVER_TIMESTAMP,
+                    "status": IssueStatus.ANALYZING,
+                    "updated_at": datetime.now(),
+                    "event_risk": event_risk.model_dump(),
+                    "summary": summary,
                 }
                 issue_ref.update(updates)
-                logger.info(f"Reopened issue {issue_id}, setting status to NEW")
+                logger.info(f"Reopened issue {issue_id}, setting status to ANALYZING")
             else:
                 logger.info(
                     f"Issue already exists for event. Current status is {current_status}, no action taken"
                 )
         else:
             logger.info("Creating new issue for event")
-            issue_ref.set(event)
+            issue = Issue(
+                issue_id=issue_id,
+                event_id=event.event_id,
+                node_ids=[
+                    s.node_id for s in event_risk.node_summaries if s.is_problematic
+                ],
+                event_risk=event_risk,
+                summary=summary,
+                status=IssueStatus.NEW,
+                created_at=datetime.now(),
+            )
+            issue_ref.set(issue.model_dump())
             logger.info(f"Created new issue with id: {issue_id}")
 
         logger.info(
@@ -185,15 +203,23 @@ class DataManager:
         issue_ref.set(issue.model_dump())
         return issue_ref.id
 
-    async def update_issue(self, issue_id: str, updates: Dict) -> bool:
+    async def delete_issue(self, issue_id: str):
+        self.manager_db.collection("issues").document(issue_id).delete()
+
+    async def update_issue(self, issue: str | Issue, updates: Dict) -> bool:
         """Updates issue document with `issue_id` in Firestore with the new data"""
+        if isinstance(issue, Issue):
+            issue_id = issue.issue_id
+        else:
+            issue_id = issue
+
         logger.info(
             f"Starting function: DataManager.update_issue, issue_id: {issue_id}, updates: {updates}"
         )
+        updates["updated_at"] = datetime.now()
         issue_ref = self.manager_db.collection("issues").document(issue_id)
         issue_ref.update(updates)
         logger.info(f"Updated issue with id: {issue_id} with data: {updates}")
-        logger.info(f"Finished function: DataManager.update_issue")
         return True
 
     async def get_issue_stats(self) -> Dict:
@@ -262,49 +288,30 @@ class DataManager:
         end_time: Optional[datetime] = None,
         location: Optional[str] = None,
         max_num_event: Optional[int] = MAX_NUM_EVENTS,
-    ) -> List[Event]:
-        logger.info(
-            f"Starting function: DataManager.get_events, start_time: {start_time}, end_time: {end_time}, location: {location}, max_num_event: {max_num_event}"
-        )
-
-        query = f"""
-        SELECT * FROM `{self.bq_event_db_name}` as e
-        where SAFE_CAST(e.start_date AS DATE) IS NOT NULL
-        """
+    ):
+        event_collection = self.manager_db.collection("events")
         if start_time:
             start_time_str = start_time.strftime("%Y-%m-%d")
-            query = (
-                query
-                + f""" AND SAFE_CAST(e.start_date AS DATE) >= DATE('{start_time_str}')"""
+            event_collection = event_collection.where(
+                filter=FieldFilter("start_date", ">=", start_time_str)
             )
         if end_time:
             end_time_str = end_time.strftime("%Y-%m-%d")
-            query = (
-                query
-                + f""" AND SAFE_CAST(e.end_date AS DATE) <= DATE('{end_time_str}')"""
-            )
-        if max_num_event:
-            query = query + f""" LIMIT {max_num_event}"""
+            event_collection = event_collection.where(
+                filter=FieldFilter("start_date", "<=", end_time_str)
+            )  # we can only filter on the same field , i.e. start date due to firestore query limits
+        event_collection = event_collection.order_by("start_date").order_by("end_date")
 
-        query = query + ";"
-        logger.debug(f"BQ Query: {query}")
-
-        try:
-            query_job = self.bq_client.query(query)
-            query_result = query_job.result()
-            events = []
-            for row in query_result:
-                row_dict = dict(row)
-                event = Event.from_firestore_doc(row_dict["event_id"], row_dict)
+        events = []
+        for doc in event_collection.stream():
+            try:
+                event = Event.from_firestore_doc(doc.id, doc.to_dict())
                 events.append(event)
-            logger.info(f"Retrieved {len(events)} events from BigQuery")
-            logger.info(f"Finished function: DataManager.get_events")
-            return events
-
-        except Exception as e:
-            logger.exception("Error querying BigQuery for events")
-            logger.info(f"Finished function: DataManager.get_events with error")
-            return []
+                if max_num_event and (len(events) >= max_num_event):
+                    break
+            except Exception as e:
+                logger.error(f"parsing event got error {e}")
+        return events
 
     async def get_event(self, event_id: str) -> Optional[Event]:
         logger.info(f"Starting function: DataManager.get_event, event_id: {event_id}")
@@ -336,7 +343,6 @@ class DataManager:
         events_ref = self.manager_db.collection("events")
         for doc in events_ref.stream():  # Stream for potentially large datasets
             event_type = doc.to_dict().get("status", "new")
-            event_type = doc.to_dict().get("status", "new")
             stats[event_type] = stats.get(event_type, 0) + 1
             logger.debug(f"Event type: {event_type}, count: {stats[event_type]}")
         logger.info(f"Event statistics: {stats}")
@@ -351,7 +357,7 @@ class DataManager:
         self, node_id: str, n_record: int = 4
     ) -> List[PerformanceData]:
         # TODO: need to be able to retrieve data for a list of node
-        logger.info(
+        logger.debug(
             f"Starting function: DataManager.get_performance_data, node_id: {node_id}, n_record: {n_record}"
         )
 
@@ -386,16 +392,16 @@ class DataManager:
                             rrc_setup_sr_pct=d["RRC_Estab_SR_pct"],
                         )
                     )
-                logger.info(
+                logger.debug(
                     f"Retrieved {len(perf)} performance data records for node: {node_id}"
                 )
-                logger.info(f"Finished function: DataManager.get_performance_data")
+                logger.debug(f"Finished function: DataManager.get_performance_data")
                 return perf
             else:
                 logger.warning(
                     f"Performance data not found for node: {node_id}, status code: {response.status_code}"
                 )
-                logger.info(
+                logger.warning(
                     f"Finished function: DataManager.get_performance_data, data not found"
                 )
                 return []
@@ -411,7 +417,7 @@ class DataManager:
     # -------------------
 
     async def get_alarms(self, node_id: str) -> List[Alarm]:
-        logger.info(f"Starting function: DataManager.get_alarms, node_id: {node_id}")
+        logger.debug(f"Starting function: DataManager.get_alarms, node_id: {node_id}")
         payload = {
             "node_id": node_id,
         }
@@ -429,20 +435,20 @@ class DataManager:
                 data = json.loads(response.content)
                 for d in data:
                     alarms.append(Alarm(**d))
-                logger.info(f"Retrieved {len(alarms)} alarms for node: {node_id}")
-                logger.info(f"Finished function: DataManager.get_alarms")
+                logger.debug(f"Retrieved {len(alarms)} alarms for node: {node_id}")
+                logger.debug(f"Finished function: DataManager.get_alarms")
                 return alarms
             else:
                 logger.warning(
                     f"Alarm data not found for node: {node_id}, status code: {response.status_code}"
                 )
-                logger.info(
+                logger.warning(
                     f"Finished function: DataManager.get_alarms, data not found"
                 )
                 return []
         except requests.exceptions.RequestException as e:
             logger.exception(f"Error fetching alarm data from {url}")
-            logger.info(f"Finished function: DataManager.get_alarms with error")
+            logger.debug(f"Finished function: DataManager.get_alarms with error")
             return []
 
         ...
@@ -529,8 +535,8 @@ class DataManager:
             GEO_COORDINATES, -- Replace longitude and latitude with your table's column names
             ST_GEOGPOINT({lng}, {lat}) -- Replace with your target longitude and latitude (e.g., Chicago)
         ) <= {radius} -- 5000 meters = 5 kilometers
-        AND CELLS_4G IS NOT NULL ;
-        AND CELLS_4G IS NOT NULL ;
+        AND CELLS_4G IS NOT NULL
+        LIMIT 5;
         """
         formatted_query = QUERY.format(
             lng=location.longitude, lat=location.latitude, radius=radius
@@ -559,7 +565,6 @@ class DataManager:
     # -------------------
     # Agent state management
     # -------------------
-
     async def save_agent_checkpoint(
         self,
         issue_id: str,

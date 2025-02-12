@@ -1,19 +1,16 @@
-from enum import Enum
+import asyncio
 import os
 import random
-import asyncio
+from datetime import datetime
+from enum import Enum
 from typing import Any, Optional
+
+from app.data_manager import DataManager
+from app.models import Issue, IssueStatus, Task, TaskStatus
 from google.cloud import firestore
 from google.cloud.firestore_v1.transforms import Sentinel
-from app.models import Issue, IssueStatus, Task, TaskStatus
-from app.data_manager import DataManager
-from langchain_core.messages import (
-    BaseMessage,
-    AIMessage,
-    ToolMessage,
-)
+from langchain_core.messages import AIMessage, BaseMessage, ToolMessage
 from pydantic import BaseModel
-from datetime import datetime
 
 # DUMMY_ISSUE = {"status": "ANALYZING", "node_ids": ["n-123"], "summary": ""}
 

@@ -368,10 +368,7 @@ class ReasoningAgent:
     async def _router(
         self,
         state: list[BaseMessage],
-    ) -> Literal[
-        "tools",
-        "__end__",
-    ]:
+    ) -> Literal["tools", "__end__",]:
         """
         Defines the routing logic for the LangGraph workflow.
 

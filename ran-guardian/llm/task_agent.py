@@ -1,25 +1,23 @@
 import logging
 import os
 from typing import Literal, Optional
+
 from langchain_core.messages import (
+    AIMessage,
     BaseMessage,
     HumanMessage,
     SystemMessage,
-    AIMessage,
     ToolMessage,
 )
+from langchain_core.tools import tool
 from langchain_google_vertexai import ChatVertexAI, HarmBlockThreshold, HarmCategory
 from langgraph.checkpoint.memory import MemorySaver
-from langgraph.store.memory import InMemoryStore
-from langchain_core.tools import tool
-
 from langgraph.graph import END, MessageGraph
 from langgraph.prebuilt import ToolNode
-
+from langgraph.store.memory import InMemoryStore
+from llm.prompt_manager import PromptManager
 from llm.tools import run_node_command
 from llm.utils import strip_markdown
-from llm.prompt_manager import PromptManager
-
 
 prompt_manager = PromptManager()
 
@@ -124,10 +122,7 @@ class TaskAgent:
     def _router(
         self,
         state: list[BaseMessage],
-    ) -> Literal[
-        "tools",
-        "__end__",
-    ]:
+    ) -> Literal["tools", "__end__",]:
         # Get the tool_calls from the last message in the conversation history.
         tool_calls = state[-1].tool_calls
 
