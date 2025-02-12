@@ -125,9 +125,17 @@ class DataManager:
         doc_dict = doc.to_dict()
         try:
             if "tasks" in doc_dict and doc_dict["tasks"]:
-                doc_dict["tasks"] = [
-                    Task.model_validate_json(t) for t in doc_dict["tasks"]
-                ]
+                if isinstance(doc_dict["tasks"], list):
+                    doc_dict["tasks"] = [
+                        Task.model_validate(t if isinstance(t, dict) else json.loads(t))
+                        for t in doc_dict["tasks"]
+                    ]
+                else:
+                    doc_dict["tasks"] = [
+                        Task.model_validate(t if isinstance(t, dict) else json.loads(t))
+                        for t in json.loads(doc_dict["tasks"])
+                    ]
+
             if "event_risk" in doc_dict and doc_dict["event_risk"]:
                 node_sum = doc_dict["event_risk"]["node_summaries"]
                 node_sum = [NodeSummary.model_validate(n) for n in node_sum]
@@ -649,9 +657,9 @@ class DataManager:
 
         payload = {
             "event": event.model_dump() if event else {},
-            "issue": issue.model_dump()
-            if issue
-            else {},  # Only include issue if it's not None
+            "issue": (
+                issue.model_dump() if issue else {}
+            ),  # Only include issue if it's not None
         }
         logger.info("[build_get_issue_response_payload]: finished with payload created")
         return payload

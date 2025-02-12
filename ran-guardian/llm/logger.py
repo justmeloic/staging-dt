@@ -13,6 +13,7 @@ class AgentWorkflowLogger:
         bucket_name: str,
         logs_location: str,
         issue_id: str,
+        node_id: str,
         agent_name: str,
     ):
         """
@@ -28,7 +29,7 @@ class AgentWorkflowLogger:
         self.agent_name = agent_name
         self.bucket_name = bucket_name  # Replace with your actual bucket name
         self.logs_location = logs_location
-        self.blob_name = f"{logs_location}/{issue_id}.log"
+        self.blob_name = f"{logs_location}/{issue_id}_{node_id}.log"
 
         self.storage_client = storage.Client()
         self.bucket = self.storage_client.bucket(self.bucket_name)

@@ -263,8 +263,8 @@ class Agent:
     async def _evaluate_if_human_intervention(self, issue: Issue) -> bool:
         logger.info("[_evaluate_if_human_intervention]: start ...")
         # replace with some gemini magic here
-        if not (issue.node_ids):
-            # if we don't find any nodes near the issue
+        if not (issue.node_ids) or issue.status == IssueStatus.PENDING_APPROVAL:
+            # if we don't find any nodes near the issue or the issue is in a pending approval stage
             result = True
         else:
             result = False
@@ -292,6 +292,63 @@ class Agent:
         logger.info(
             f"[_handle_human_intervention]: finished with issue {issue_id} marked for human intervention"
         )
+
+    async def _process_node_with_ai_agent(self, issue_id: str, node_id: str) -> None:
+        """Process a single node with a ReasoningAgent instance.
+
+        This helper method handles the creation and execution of a ReasoningAgent
+        for a single node while respecting the concurrency limit.
+        """
+        async with self.agent_semaphore:  # Using semaphore to limit concurrent executions
+            logger.info(f"Starting ReasoningAgent for node {node_id}")
+            await self.logger.log(
+                "info",
+                f"Starting ReasoningAgent for node {node_id}",
+                issue_id=issue_id,
+                node_id=node_id,
+            )
+
+            try:
+                ai_agent = ReasoningAgent(
+                    project=os.environ.get("PROJECT_ID"),
+                    location=os.environ.get("VERTEXAI_LOCATION"),
+                    issue=await self.data_manager.get_issue(issue_id),
+                    node_id=node_id,
+                )
+
+                # Check for existing checkpoints
+                snapshot = await self.data_manager.load_agent_snapshot(
+                    issue_id, node_id
+                )
+                history = await self.data_manager.load_agent_history(issue_id, node_id)
+
+                if snapshot:
+                    logger.info(
+                        f"Checkpoint found for issue {issue_id}, node {node_id}. Agent will resume work..."
+                    )
+                    ai_agent.load_state(snapshot, history)
+
+                ai_agent.set_up()
+                await ai_agent.run_workflow()
+
+                # Save agent state
+                snapshot = await ai_agent.get_snapshot()
+                history = ai_agent.get_history()
+                await self.data_manager.save_agent_checkpoint(
+                    issue_id=issue_id,
+                    node_id=node_id,
+                    snapshot=snapshot,
+                    history=history,
+                )
+
+            except Exception as e:
+                logger.error(f"Error processing node {node_id}", exc_info=True)
+                await self.logger.log(
+                    "error",
+                    f"Error processing node {node_id}: {str(e)}",
+                    issue_id=issue_id,
+                    node_id=node_id,
+                )
 
     async def _process_node_with_ai_agent(self, issue_id: str, node_id: str) -> None:
         """Process a single node with a ReasoningAgent instance.
