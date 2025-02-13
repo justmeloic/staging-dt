@@ -218,3 +218,23 @@ The following is a sample payload response to a `GET http://localhost:8080/issue
     }
   }
 ```
+
+# Build Docker containers
+
+```
+docker build -t events-explorer -f Dockerfile-events-explorer .
+docker tag events-explorer europe-west3-docker.pkg.dev/de1000-dev-mwc-ran-agent/ran-guardian/events-explorer:latest
+docker push europe-west3-docker.pkg.dev/de1000-dev-mwc-ran-agent/ran-guardian/events-explorer
+```
+
+```
+docker build -t main -f Dockerfile-main .
+docker tag main europe-west3-docker.pkg.dev/de1000-dev-mwc-ran-agent/ran-guardian/main:latest
+docker push europe-west3-docker.pkg.dev/de1000-dev-mwc-ran-agent/ran-guardian/main
+```
+
+```
+docker build -t data-gen -f Dockerfile-data-gen .
+docker tag data-gen europe-west3-docker.pkg.dev/de1000-dev-mwc-ran-agent/ran-guardian/data-gen:latest
+docker push europe-west3-docker.pkg.dev/de1000-dev-mwc-ran-agent/ran-guardian/data-gen
+```
