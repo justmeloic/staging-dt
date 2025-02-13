@@ -2,7 +2,7 @@
 
 from typing import Annotated
 from model_utils import generate, retry
-from prompts import AGGREGATE_EVENTS, DISCOVER_EVENT, DEDUPLICATE_EVENTS
+from prompts import AGGREGATE_EVENTS, DISCOVER_EVENT, DEDUPLICATE_EVENTS, VERIFY_EVENT
 import json 
 import concurrent.futures
 from gmap_utils import geocode_location
@@ -10,6 +10,9 @@ import firestore_helper
 from tqdm import tqdm
 import logging
 import typer
+import requests
+import markdownify
+
 
 logger = logging.getLogger(__name__)
 
@@ -169,6 +172,27 @@ def dedup_events_per_location(event_location):
 
     logger.info(f"Deleted events: {deleted_events} for location {event_location}")
 
+def get_url_content_tool(url: str):
+    """Gets markdown content from a URL"""
+
+    print("Calling get_url_content_tool")
+    try:
+        response = requests.get(url)
+        return markdownify.markdownify(response.text)
+    except requests.exceptions.RequestException as e:
+        print(f"Error fetching URL: {e}")
+        return ""
+    
+
+def verify_event(location: str, event_id: str):
+    event_details = firestore_helper.get_event_by_location_and_id(location, event_id)
+    # url_content = get_url_content_tool(event_details["url"])
+    # print(url_content)
+
+    prompt = VERIFY_EVENT.format(event_details=event_details)
+    response = generate(prompt, include_search=True, custom_tools=[get_url_content_tool])
+    print(response)
+
 @app.command()
 def main(priority: Annotated[str, typer.Option(prompt=True, help="Priority of the locations to be scanned (high/medium/low/all)")] = "high",
          days_since_last_scan: Annotated[int, typer.Option(prompt=True, help="Number of days since last scan")] = 30,
@@ -204,6 +228,8 @@ if __name__ == "__main__":
         format="%(asctime)s - %(levelname)s - %(message)s",
         level=logging.INFO,
     )
+
+    # verify_event("Aach Baden-Württemberg", "3nQb5zKRWWsNejMEe2Pd")
 
     logger.info("### Event Scout Started: Looking for events and adding to database ###")
     app()

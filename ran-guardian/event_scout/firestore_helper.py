@@ -151,4 +151,10 @@ def get_nodes_within_radius(lng: float, lat: float, radius: int = 4000) -> panda
     df = query_job.to_dataframe()
     return df
 
+def get_event_by_location_and_id(location: str, event_id: str) -> dict:
+    """Returns a single event for the specified location and event ID."""
+    doc_ref = db.collection(location).document(event_id)
+    return doc_ref.get().to_dict()
+
 # print(get_nodes_within_radius(13.4049, 52.5200, 4000))
+# print(get_event_by_location_and_id("Aach Baden-Württemberg", "0fdGDkY2A34O1PzFJwF2"))

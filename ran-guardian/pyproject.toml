@@ -29,6 +29,8 @@ langgraph = "^0.2.68"
 google-cloud-aiplatform = {extras = ["reasoningengine"], version = "^1.79.0"}
 langchain-google-vertexai = "^2.0.12"
 typer = "^0.15.1"
+requests = "^2.32.3"
+markdownify = "^0.14.1"
 
 
 [tool.poetry.group.dev.dependencies]
