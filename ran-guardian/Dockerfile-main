@@ -24,8 +24,4 @@ COPY .env .
 # Expose the ports
 EXPOSE 8000
 
-# Start script to run all applications
-COPY docker-start-main.sh /app/docker-start-main.sh
-RUN chmod +x /app/docker-start-main.sh
-
-CMD ["/app/docker-start-main.sh"]
+CMD [poetry run uvicorn app.main:app --port 8000 --host 0.0.0.0 &]

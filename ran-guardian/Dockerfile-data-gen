@@ -24,8 +24,4 @@ COPY .env .
 # Expose the ports
 EXPOSE 8001
 
-# Start script to run all applications
-COPY docker-start-data-gen.sh /app/docker-start-data-gen.sh
-RUN chmod +x /app/docker-start-data-gen.sh
-
-CMD ["/app/docker-start-data-gen.sh"]
+CMD ["poetry run uvicorn data_generator.main:app --port 8001 --host 0.0.0.0 &"]
