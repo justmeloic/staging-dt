@@ -46,7 +46,7 @@ def update_last_scanned(location: str) -> None:
     """Updates the last_scanned field of the given location."""
 
     doc_ref = db.collection("locations").document(location)
-    doc_ref.set({"last_scanned": datetime.datetime.now(tz=datetime.timezone.utc)}, merge=True)
+    doc_ref.set({"last_scanned": datetime.now(tz=timezone.utc)}, merge=True)
 
 def get_global_stats() -> dict:
     """Returns the global scanning stats."""
