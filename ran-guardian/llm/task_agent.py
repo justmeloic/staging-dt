@@ -1,23 +1,23 @@
 import logging
+import os
 from typing import Literal, Optional
+
 from langchain_core.messages import (
+    AIMessage,
     BaseMessage,
     HumanMessage,
     SystemMessage,
-    AIMessage,
     ToolMessage,
 )
+from langchain_core.tools import tool
 from langchain_google_vertexai import ChatVertexAI, HarmBlockThreshold, HarmCategory
 from langgraph.checkpoint.memory import MemorySaver
-from langgraph.store.memory import InMemoryStore
-from langchain_core.tools import tool
-
 from langgraph.graph import END, MessageGraph
 from langgraph.prebuilt import ToolNode
-
+from langgraph.store.memory import InMemoryStore
+from llm.prompt_manager import PromptManager
 from llm.tools import run_node_command
 from llm.utils import strip_markdown
-from llm.prompt_manager import PromptManager
 
 prompt_manager = PromptManager()
 
@@ -31,7 +31,9 @@ class TaskAgent:
         self,
         system_instructions: str,
         node_id: str,
-        model_name: Optional[str] = "gemini-1.5-pro",
+        model_name: Optional[str] = os.environ.get(
+            "GEMINI_MODEL_NAME", "gemini-2.0-flash"
+        ),
     ) -> None:
         self.model_name = model_name
         self.chat_history = [
@@ -120,10 +122,7 @@ class TaskAgent:
     def _router(
         self,
         state: list[BaseMessage],
-    ) -> Literal[
-        "tools",
-        "__end__",
-    ]:
+    ) -> Literal["tools", "__end__",]:
         # Get the tool_calls from the last message in the conversation history.
         tool_calls = state[-1].tool_calls
 
@@ -148,7 +147,120 @@ def activate_mlb(node_id: str) -> str:
         agent.set_up()
         messages = agent.run_workflow()
         response = strip_markdown(messages[-1].content)
-        return strip_markdown(messages[-1].content)
+        return response
+    except:
+        logger.error("Failed to execute task", exc_info=True)
+        raise
+
+
+@tool
+def deactivate_ca(node_id: str) -> str:
+    """Deactivate CA for a node"""
+    activate_mlb_prompt = prompt_manager.get_prompt("deactivate_ca", node_id=node_id)
+    agent = TaskAgent(system_instructions=activate_mlb_prompt, node_id=node_id)
+    try:
+        agent.set_up()
+        messages = agent.run_workflow()
+        response = strip_markdown(messages[-1].content)
+        return response
+    except:
+        logger.error("Failed to execute task", exc_info=True)
+        raise
+
+
+@tool
+def change_dss(node_id: str) -> str:
+    """Change DSS for a node"""
+    activate_mlb_prompt = prompt_manager.get_prompt("change_dss", node_id=node_id)
+    agent = TaskAgent(system_instructions=activate_mlb_prompt, node_id=node_id)
+    try:
+        agent.set_up()
+        messages = agent.run_workflow()
+        response = strip_markdown(messages[-1].content)
+        return response
+    except:
+        logger.error("Failed to execute task", exc_info=True)
+        raise
+
+
+@tool
+def deactivate_pdcch_power_boost(node_id: str) -> str:
+    """Deactivate PDCCH Power Boost for node"""
+    activate_mlb_prompt = prompt_manager.get_prompt(
+        "deactivate_pdcch_power_boost", node_id=node_id
+    )
+    agent = TaskAgent(system_instructions=activate_mlb_prompt, node_id=node_id)
+    try:
+        agent.set_up()
+        messages = agent.run_workflow()
+        response = strip_markdown(messages[-1].content)
+        return response
+    except:
+        logger.error("Failed to execute task", exc_info=True)
+        raise
+
+
+@tool
+def enhance_dsplit_threshold(node_id: str) -> str:
+    """Enhance dsplitThreshold for node"""
+    activate_mlb_prompt = prompt_manager.get_prompt(
+        "enhance_dsplit_threshold", node_id=node_id
+    )
+    agent = TaskAgent(system_instructions=activate_mlb_prompt, node_id=node_id)
+    try:
+        agent.set_up()
+        messages = agent.run_workflow()
+        response = strip_markdown(messages[-1].content)
+        return response
+    except:
+        logger.error("Failed to execute task", exc_info=True)
+        raise
+
+
+@tool
+def enhance_resource_allocation(node_id: str) -> str:
+    """Enhance resource allocation for node"""
+    activate_mlb_prompt = prompt_manager.get_prompt(
+        "enhance_resource_allocation", node_id=node_id
+    )
+    agent = TaskAgent(system_instructions=activate_mlb_prompt, node_id=node_id)
+    try:
+        agent.set_up()
+        messages = agent.run_workflow()
+        response = strip_markdown(messages[-1].content)
+        return response
+    except:
+        logger.error("Failed to execute task", exc_info=True)
+        raise
+
+
+@tool
+def increase_tilt_value(node_id: str) -> str:
+    """Increase cell tilt value"""
+    activate_mlb_prompt = prompt_manager.get_prompt(
+        "increase_tilt_value", node_id=node_id
+    )
+    agent = TaskAgent(system_instructions=activate_mlb_prompt, node_id=node_id)
+    try:
+        agent.set_up()
+        messages = agent.run_workflow()
+        response = strip_markdown(messages[-1].content)
+        return response
+    except:
+        logger.error("Failed to execute task", exc_info=True)
+        raise
+
+
+@tool
+def decrease_power(node_id: str) -> str:
+    """Decrease cell power"""
+    activate_mlb_prompt = prompt_manager.get_prompt("decrease_power", node_id=node_id)
+    agent = TaskAgent(system_instructions=activate_mlb_prompt, node_id=node_id)
+    try:
+        agent.set_up()
+        messages = agent.run_workflow()
+        response = strip_markdown(messages[-1].content)
+        return response
     except:
         logger.error("Failed to execute task", exc_info=True)
         raise

@@ -1,8 +1,15 @@
-from pydantic import BaseModel, Field
-from typing import List, Optional, Dict
+import json
+import logging
+import uuid
 from datetime import datetime
 from enum import Enum
-import uuid
+from typing import Any, Dict, List, NamedTuple, Optional
+
+from langchain_core.messages import BaseMessage
+from langgraph.types import StateSnapshot
+from pydantic import BaseModel, Field
+
+logger = logging.getLogger(__name__)
 
 
 class IssueStatus(str, Enum):
@@ -31,6 +38,7 @@ class Event(BaseModel):
     url: Optional[str]
     event_type: str
     size: str
+    issue_id: Optional[str] = None
 
     @classmethod
     def from_firestore_doc(cls, doc_id: str, doc_data: dict) -> Optional["Event"]:
@@ -66,9 +74,11 @@ class Event(BaseModel):
                 url=doc_data.get("url"),
                 event_type=doc_data.get("event_type"),
                 size=doc_data.get("size"),
+                issue_id=doc_data.get("issue_id"),
             )
 
         except (ValueError, TypeError, KeyError) as e:
+            print(e)
             # print(f"Error converting document {doc_id}: {e}")
             # print(f"Problematic data: {doc_data}")
             return None
@@ -80,6 +90,14 @@ class NodeData(BaseModel):
     capacity: int
 
 
+class Site(BaseModel):
+    site_id: str
+    name: str
+    location: Location
+    nodes: List[NodeData]
+
+
+# TODO: need to be updated to match the description in data_generator
 class PerformanceData(BaseModel):
     node_id: str
     timestamp: datetime
@@ -88,6 +106,7 @@ class PerformanceData(BaseModel):
     # Various performance metrics
 
 
+# TODO: need to modify to better fit alarm data
 class Alarm(BaseModel):
     alarm_id: str
     node_id: str
@@ -96,6 +115,32 @@ class Alarm(BaseModel):
     cleared_at: Optional[datetime] = None
     alarm_type: str
     description: str
+
+
+class NodeSummary(BaseModel):
+    node_id: str
+    site_id: str
+    capacity: int
+    timestamp: datetime
+    performances: List[PerformanceData]
+    alarms: List[Alarm]
+    is_problematic: bool = False
+    summary: str = ""
+
+
+class TaskStatus(str, Enum):
+    DONE = "done"
+    FAILED = "failed"
+    EXECUTING = "executing"
+    SCHEDULED = "scheduled"
+
+
+class Task(BaseModel):
+    name: str
+    status: TaskStatus
+    node_id: str
+    executed_at: Optional[datetime] = None
+    commands: Optional[list[str]] = None
 
 
 class IssueSnapshot(BaseModel):
@@ -115,14 +160,49 @@ class IssueUpdate(BaseModel):
 
 
 class Issue(BaseModel):
-    issue_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    issue_id: str = Field(
+        default_factory=lambda: str(uuid.uuid4())
+    )  # maybe we can just use the same id?
     event_id: str
+    # need to add event start and end date to better sort issues
+    event_risk: Optional["EventRisk"] = None
     node_ids: list[str]
     status: IssueStatus = IssueStatus.NEW
     created_at: datetime = Field(default_factory=datetime.now)
     updated_at: datetime = Field(default_factory=datetime.now)
     updates: List[IssueUpdate] = Field(default_factory=list)  # Simplified history
     summary: Optional[str] = None
+    tasks: Optional[list[Task]] = None
+
+    @classmethod
+    def from_firestore_doc(cls, doc):
+        doc_dict = doc.to_dict()
+        try:
+            if "tasks" in doc_dict and doc_dict["tasks"]:
+                if isinstance(doc_dict["tasks"], list):
+                    doc_dict["tasks"] = [
+                        Task.model_validate(t if isinstance(t, dict) else json.loads(t))
+                        for t in doc_dict["tasks"]
+                    ]
+                else:
+                    doc_dict["tasks"] = [
+                        Task.model_validate(t if isinstance(t, dict) else json.loads(t))
+                        for t in json.loads(doc_dict["tasks"])
+                    ]
+
+            if "event_risk" in doc_dict and doc_dict["event_risk"]:
+                node_sum = doc_dict["event_risk"]["node_summaries"]
+                node_sum = [NodeSummary.model_validate(n) for n in node_sum]
+                doc_dict["event_risk"]["node_summaries"] = node_sum
+                doc_dict["event_risk"] = EventRisk.model_validate(
+                    doc_dict["event_risk"]
+                )
+            issue = cls(**doc_dict)
+            return issue
+
+        except Exception as e:
+            logger.error(f"parsing issue got error {e}")
+            return None
 
 
 class RiskLevel(str, Enum):
@@ -131,22 +211,12 @@ class RiskLevel(str, Enum):
     HIGH = "high"
 
 
-class Risk(BaseModel):
+# output of evaluate event risk
+class EventRisk(BaseModel):
     event_id: str
-    node_id: str
+    node_summaries: List[NodeSummary]
     risk_level: RiskLevel
     description: str
-
-
-class RiskAnalysis(BaseModel):
-    identified_risks: List[Risk]
-
-
-class ValidationResult(BaseModel):
-    node_id: str
-    event_id: str
-    is_valid: bool
-    summary: str
 
 
 class ConfigSuggestion(BaseModel):
@@ -156,3 +226,8 @@ class ConfigSuggestion(BaseModel):
 class ResolutionResult(BaseModel):
     is_resolved: bool
     confidence: float
+
+
+class AgentHistory(BaseModel):
+    chat_history: Optional[list[BaseMessage]] = list()
+    task_history: Optional[list[Task]] = list()

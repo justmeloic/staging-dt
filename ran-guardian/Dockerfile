@@ -2,7 +2,7 @@
 FROM python:3.11-slim-buster
 
 # Set the working directory inside the container
-WORKDIR /app
+WORKDIR /ran-guardian
 
 # Install poetry
 RUN pip install --upgrade pip && \
@@ -18,8 +18,14 @@ RUN poetry config virtualenvs.create false && \
 # Copy the rest of the application code
 COPY . .
 
-# Expose the port Streamlit will run on (default is 8501)
-EXPOSE 8501
+# Copy the .env file into the container
+COPY .env .
 
-# Define the command to run your Streamlit application using poetry
-CMD ["poetry", "run", "streamlit", "run", "event_scout/st_events_explorer_ui.py", "--server.port=8501", "--server.headless=true"]
+# Expose the ports
+EXPOSE 8501 8000 8001
+
+# Start script to run all applications
+COPY docker-start.sh /app/docker-start.sh
+RUN chmod +x /app/docker-start.sh
+
+CMD ["/app/docker-start.sh"]

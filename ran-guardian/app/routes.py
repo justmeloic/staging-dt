@@ -1,18 +1,18 @@
 import asyncio
-from datetime import datetime
-from dotenv import load_dotenv
-from fastapi import APIRouter, HTTPException, Depends, Request
-import os
-from typing import Dict, Optional, List
 import json
 import logging
-from sse_starlette.sse import EventSourceResponse
-from google.cloud import firestore
-from app.models import IssueStatus, Issue
+import os
+from datetime import datetime
+from typing import Dict, List, Optional
+
 from app.agent import Agent
 from app.data_manager import DataManager
+from app.models import Issue, IssueStatus
 from app.network_manager import NetworkConfigManager
-
+from dotenv import load_dotenv
+from fastapi import APIRouter, Depends, HTTPException, Request
+from google.cloud import firestore
+from sse_starlette.sse import EventSourceResponse
 
 load_dotenv()
 PROJECT_ID = os.getenv("PROJECT_ID")
@@ -51,9 +51,25 @@ async def health_check():
 # Issue management
 # ---
 # --- Issue management ---
-@router.get("/issues", response_model=List[Issue])  # Type hint
+@router.get("/issues", response_model=List[dict])  # Type hint
 async def get_issues(data_manager: DataManager = Depends(get_data_manager)):
-    return await data_manager.get_issues()
+    issues = await data_manager.get_issues()
+    events = []
+    for issue in issues:
+        event = None
+        event_id = issue.event_id
+        if event_id:
+            event = await data_manager.get_event(event_id)
+            if event:
+                events.append(event.model_dump())
+        if not event:
+            events.append({})
+
+    payload = []
+    for issue, event in zip(issues, events):
+        payload.append({"issue": issue.model_dump(), "event": event})
+
+    return payload
 
 
 @router.get("/issues/{issue_id}")
@@ -61,7 +77,8 @@ async def get_issue(
     issue_id: str, data_manager: DataManager = Depends(get_data_manager)
 ):
     """Get details of a specific issue"""
-    return await data_manager.get_issue(issue_id)
+    # return await data_manager.get_issue(issue_id)
+    return await data_manager.build_get_issue_response_payload(issue_id)
 
 
 @router.put("/issues/{issue_id}")
@@ -83,13 +100,26 @@ async def get_issue_stats(data_manager: DataManager = Depends(get_data_manager))
 
 
 @router.post("/issues/approve/{issue_id}")
-async def run_network_config_proposal(
+async def approve_issue(
     issue_id: str,
+    message: Optional[str] = None,
     data_manager: DataManager = Depends(get_data_manager),
 ):
-    """Trigger network configuration changes based on the proposed config"""
+    """Update the issue status to approved"""
     return await data_manager.update_issue(
         issue_id, {"status": "approved", "updated_at": firestore.SERVER_TIMESTAMP}
+    )
+
+
+@router.post("/issues/reject/{issue_id}")
+async def reject_issue(
+    issue_id: str,
+    message: Optional[str] = None,
+    data_manager: DataManager = Depends(get_data_manager),
+):
+    """Update the issue status to rejected"""
+    return await data_manager.update_issue(
+        issue_id, {"status": "rejected", "updated_at": firestore.SERVER_TIMESTAMP}
     )
 
 

@@ -1,19 +1,15 @@
 import random
-from typing import Dict, List, Optional
 from dataclasses import dataclass
 from enum import Enum
+from typing import Dict, List, Optional
 
 from app.models import (
+    Alarm,
+    ConfigSuggestion,
     Event,
     NodeData,
     PerformanceData,
-    Alarm,
-    Risk,
-    RiskAnalysis,
-    ValidationResult,
-    ConfigSuggestion,
     ResolutionResult,
-    RiskLevel,
 )
 
 
@@ -27,14 +23,8 @@ class LLMHelper:
         performance_data: PerformanceData,
         alarm_data: Optional[list[Alarm]] = None,
         node_data: Optional[NodeData] = None,
-    ) -> ValidationResult:
-        """Validate risk by comparing event with current system data"""
-        return ValidationResult(
-            node_id=performance_data.node_id,
-            event_id=event.event_id,
-            is_valid=True,
-            summary="Mock validation summary",
-        )
+    ):
+        ...
 
     async def generate_config_suggestion(
         self, issue: Dict, current_config: Dict
@@ -44,7 +34,8 @@ class LLMHelper:
 
     async def evaluate_severity(self, issue: Dict) -> bool:
         """Evaluate if an issue requires human attention"""
-        return True if random.random() < 0.5 else False
+        # return True if random.random() < 0.1 else False
+        return False
 
     async def evaluate_resolution_success(
         self, issue: Dict, performance_data: List[Dict]
