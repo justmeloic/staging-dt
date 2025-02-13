@@ -1,3 +1,5 @@
+"""Prompt templete for verifying events."""
+
 VERIFY_EVENT = """Your job is to verify and check for factual correctness of a people gathering event,
 scheduled in the year 2025, provided to you in json format.
 
@@ -11,9 +13,11 @@ Finally, provide a confidence score for the event on a scale of 1 to 10 (1 being
 based on the following criteria. Aslo provides the correct or updated details of the event if applicable.
 
 # Confidence Score criteria #
-Event details provided in the json match with the contents of the event URL.
+- Event details provided in the json match with the contents of the event URL.
+- The start_date and end_date fields are correctly determined.
+- The event details come from a trusted source. Use your best judgement to determine trusted sources of information.
 
-Provide your justification in detail.
+Provide your justification in a few bullet points.
 Here is the json of the events:
 {event_details}
 """
