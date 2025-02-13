@@ -25,7 +25,7 @@ COPY .env .
 EXPOSE 8501
 
 # Start script to run all applications
-COPY docker-start.sh /app/docker-start.sh
-RUN chmod +x /app/docker-start.sh
+COPY docker-start-events-explorer.sh /app/docker-start-events-explorer.sh
+RUN chmod +x /app/docker-start-events-explorer.sh
 
 CMD ["/app/docker-start-events-explorer.sh"]

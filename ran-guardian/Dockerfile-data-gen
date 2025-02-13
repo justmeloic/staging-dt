@@ -25,7 +25,7 @@ COPY .env .
 EXPOSE 8001
 
 # Start script to run all applications
-COPY docker-start.sh /docker-start.sh
-RUN chmod +x /docker-start.sh
+COPY docker-start-data-gen.sh /docker-start-data-gen.sh
+RUN chmod +x /docker-start-data-gen.sh
 
 CMD ["/docker-start-data-gen.sh"]

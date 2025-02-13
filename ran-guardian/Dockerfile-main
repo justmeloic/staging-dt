@@ -25,7 +25,7 @@ COPY .env .
 EXPOSE 8000
 
 # Start script to run all applications
-COPY docker-start.sh /app/docker-start.sh
-RUN chmod +x /app/docker-start.sh
+COPY docker-start-main.sh /app/docker-start-main.sh
+RUN chmod +x /app/docker-start-main.sh
 
 CMD ["/app/docker-start-main.sh"]
