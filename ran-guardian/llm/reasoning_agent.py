@@ -47,6 +47,7 @@ from llm.utils import (
 
 log_formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
 
+logger = logging.getLogger(__name__)
 
 AUTOMATIC_TOOLS = [
     "monitor_node_metrics",
@@ -382,10 +383,7 @@ class ReasoningAgent:
     async def _router(
         self,
         state: list[BaseMessage],
-    ) -> Literal[
-        "tools",
-        "__end__",
-    ]:
+    ) -> Literal["tools", "__end__",]:
         """
         Defines the routing logic for the LangGraph workflow.
 

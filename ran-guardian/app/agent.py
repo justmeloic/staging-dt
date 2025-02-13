@@ -128,10 +128,15 @@ class Agent:
         # Check updated_at
         # If updated_at < 15 min ago, skip and process next event
         # or, if issue status is not "resolved"
-        if event.issue_id is None:
-            return False
-        else:
-            return True
+        if event.issue_id:
+            doc = (
+                self.data_manager.manager_db.collection("issues")
+                .document(event.issue_id)
+                .get()
+            )
+            if doc.exists:
+                return True
+        return False
 
     async def _process_event(self, event: Event):
         """Processes a single event and creates an issue if necessary."""
@@ -236,7 +241,11 @@ class Agent:
         else:
             time_threshold = datetime.now() - timedelta(minutes=TIME_INTERVAL)
 
-        if issue.updated_at < time_threshold or (issue.event_risk is None):
+        if (
+            issue.updated_at < time_threshold
+            or (issue.event_risk is None)
+            or (issue.node_ids is None)
+        ):
             event = await self.data_manager.get_event(issue.event_id)
             if not event:
                 # if not event exists anymore then delete the issue and return
@@ -247,10 +256,10 @@ class Agent:
                 return
 
             event_risk = await self._evaluate_event_risk(event=event)
-        else:
-            event_risk = issue.event_risk
-        event_updates["event_risk"] = event_risk.model_dump()
-        await self.data_manager.update_issue(issue.issue_id, updates=event_updates)
+            event_updates["event_risk"] = event_risk.model_dump()
+            event_updates["node_ids"] = [s.node_id for s in event_risk.node_summaries]
+            event_updates["status"] = IssueStatus.ANALYZING
+            await self.data_manager.update_issue(issue.issue_id, updates=event_updates)
 
         # if issue 's data is outdated, then update the latest data (node summary, )
         if await self._evaluate_if_human_intervention(issue):
@@ -292,63 +301,6 @@ class Agent:
         logger.info(
             f"[_handle_human_intervention]: finished with issue {issue_id} marked for human intervention"
         )
-
-    async def _process_node_with_ai_agent(self, issue_id: str, node_id: str) -> None:
-        """Process a single node with a ReasoningAgent instance.
-
-        This helper method handles the creation and execution of a ReasoningAgent
-        for a single node while respecting the concurrency limit.
-        """
-        async with self.agent_semaphore:  # Using semaphore to limit concurrent executions
-            logger.info(f"Starting ReasoningAgent for node {node_id}")
-            await self.logger.log(
-                "info",
-                f"Starting ReasoningAgent for node {node_id}",
-                issue_id=issue_id,
-                node_id=node_id,
-            )
-
-            try:
-                ai_agent = ReasoningAgent(
-                    project=os.environ.get("PROJECT_ID"),
-                    location=os.environ.get("VERTEXAI_LOCATION"),
-                    issue=await self.data_manager.get_issue(issue_id),
-                    node_id=node_id,
-                )
-
-                # Check for existing checkpoints
-                snapshot = await self.data_manager.load_agent_snapshot(
-                    issue_id, node_id
-                )
-                history = await self.data_manager.load_agent_history(issue_id, node_id)
-
-                if snapshot:
-                    logger.info(
-                        f"Checkpoint found for issue {issue_id}, node {node_id}. Agent will resume work..."
-                    )
-                    ai_agent.load_state(snapshot, history)
-
-                ai_agent.set_up()
-                await ai_agent.run_workflow()
-
-                # Save agent state
-                snapshot = await ai_agent.get_snapshot()
-                history = ai_agent.get_history()
-                await self.data_manager.save_agent_checkpoint(
-                    issue_id=issue_id,
-                    node_id=node_id,
-                    snapshot=snapshot,
-                    history=history,
-                )
-
-            except Exception as e:
-                logger.error(f"Error processing node {node_id}", exc_info=True)
-                await self.logger.log(
-                    "error",
-                    f"Error processing node {node_id}: {str(e)}",
-                    issue_id=issue_id,
-                    node_id=node_id,
-                )
 
     async def _process_node_with_ai_agent(self, issue_id: str, node_id: str) -> None:
         """Process a single node with a ReasoningAgent instance.
