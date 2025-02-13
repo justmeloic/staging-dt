@@ -1,3 +1,5 @@
+import json
+import logging
 import uuid
 from datetime import datetime
 from enum import Enum
@@ -6,6 +8,8 @@ from typing import Any, Dict, List, NamedTuple, Optional
 from langchain_core.messages import BaseMessage
 from langgraph.types import StateSnapshot
 from pydantic import BaseModel, Field
+
+logger = logging.getLogger(__name__)
 
 
 class IssueStatus(str, Enum):
@@ -169,6 +173,36 @@ class Issue(BaseModel):
     updates: List[IssueUpdate] = Field(default_factory=list)  # Simplified history
     summary: Optional[str] = None
     tasks: Optional[list[Task]] = None
+
+    @classmethod
+    def from_firestore_doc(cls, doc):
+        doc_dict = doc.to_dict()
+        try:
+            if "tasks" in doc_dict and doc_dict["tasks"]:
+                if isinstance(doc_dict["tasks"], list):
+                    doc_dict["tasks"] = [
+                        Task.model_validate(t if isinstance(t, dict) else json.loads(t))
+                        for t in doc_dict["tasks"]
+                    ]
+                else:
+                    doc_dict["tasks"] = [
+                        Task.model_validate(t if isinstance(t, dict) else json.loads(t))
+                        for t in json.loads(doc_dict["tasks"])
+                    ]
+
+            if "event_risk" in doc_dict and doc_dict["event_risk"]:
+                node_sum = doc_dict["event_risk"]["node_summaries"]
+                node_sum = [NodeSummary.model_validate(n) for n in node_sum]
+                doc_dict["event_risk"]["node_summaries"] = node_sum
+                doc_dict["event_risk"] = EventRisk.model_validate(
+                    doc_dict["event_risk"]
+                )
+            issue = cls(**doc_dict)
+            return issue
+
+        except Exception as e:
+            logger.error(f"parsing issue got error {e}")
+            return None
 
 
 class RiskLevel(str, Enum):

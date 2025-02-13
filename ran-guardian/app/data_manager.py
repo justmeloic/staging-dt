@@ -85,23 +85,9 @@ class DataManager:
 
         issues = []
         for doc in docs:
-            doc_dict = doc.to_dict()
-            try:
-                if "tasks" in doc_dict and doc_dict["tasks"]:
-                    doc_dict["tasks"] = [
-                        Task.model_validate_json(t) for t in doc_dict["tasks"]
-                    ]
-                if "event_risk" in doc_dict and doc_dict["event_risk"]:
-                    node_sum = doc_dict["event_risk"]["node_summaries"]
-                    node_sum = [NodeSummary.model_validate(n) for n in node_sum]
-                    doc_dict["event_risk"]["node_summaries"] = node_sum
-                    doc_dict["event_risk"] = EventRisk.model_validate(
-                        doc_dict["event_risk"]
-                    )
-
-                issues.append(Issue(**doc_dict))
-            except Exception as e:
-                logger.error(f"parsing issue got error {e}")
+            issue = Issue.from_firestore_doc(doc)
+            if issue:
+                issues.append(issue)
         logger.info(f"[get_issues]: finished with {len(issues)} issues retrieved")
         return issues
 
@@ -122,33 +108,15 @@ class DataManager:
         if not doc or not doc.exists:
             logger.info(f"[get_issue]: finished with issue {issue_id} not found")
             return None
-        doc_dict = doc.to_dict()
-        try:
-            if "tasks" in doc_dict and doc_dict["tasks"]:
-                if isinstance(doc_dict["tasks"], list):
-                    doc_dict["tasks"] = [
-                        Task.model_validate(t if isinstance(t, dict) else json.loads(t))
-                        for t in doc_dict["tasks"]
-                    ]
-                else:
-                    doc_dict["tasks"] = [
-                        Task.model_validate(t if isinstance(t, dict) else json.loads(t))
-                        for t in json.loads(doc_dict["tasks"])
-                    ]
-
-            if "event_risk" in doc_dict and doc_dict["event_risk"]:
-                node_sum = doc_dict["event_risk"]["node_summaries"]
-                node_sum = [NodeSummary.model_validate(n) for n in node_sum]
-                doc_dict["event_risk"]["node_summaries"] = node_sum
-                doc_dict["event_risk"] = EventRisk.model_validate(
-                    doc_dict["event_risk"]
-                )
-        except Exception as e:
-            logger.error(f"parsing issue got error {e}")
-
-        issue = Issue(**doc_dict)
-        logger.info(f"[get_issue]: finished with issue {issue_id} retrieved")
-        return issue
+        issue = Issue.from_firestore_doc(doc)
+        if issue:
+            logger.info(f"[get_issue]: finished with issue {issue_id} retrieved")
+            return issue
+        else:
+            logger.warning(
+                f"[get_issue]: issue {issue_id} hasn't been correctly parsed!"
+            )
+            return None
 
     async def create_issue(
         self, event: Event, event_risk: EventRisk, summary: str
