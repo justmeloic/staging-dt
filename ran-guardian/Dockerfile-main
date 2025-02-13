@@ -22,10 +22,10 @@ COPY . .
 COPY .env .
 
 # Expose the ports
-EXPOSE 8501 8000 8001
+EXPOSE 8000
 
 # Start script to run all applications
 COPY docker-start.sh /app/docker-start.sh
 RUN chmod +x /app/docker-start.sh
 
-CMD ["/app/docker-start.sh"]
+CMD ["/app/docker-start-main.sh"]
