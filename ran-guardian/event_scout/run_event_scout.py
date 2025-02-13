@@ -187,13 +187,18 @@ def get_url_content_tool(url: str):
     
 
 def verify_event(location: str, event_id: str):
-    event_details = firestore_helper.get_event_by_location_and_id(location, event_id)
-    # url_content = get_url_content_tool(event_details["url"])
-    # print(url_content)
+    event_details = None
+    try:
+        event_details = firestore_helper.get_event_by_location_and_id(location, event_id)
+    except Exception as e:
+        logger.warning(f"Could not retrieve event with event ID: {event_id} at location {location}")
 
-    prompt = VERIFY_EVENT.format(event_details=event_details)
-    response = generate(prompt, include_search=True, custom_tools=[get_url_content_tool])
-    print(response)
+    if event_details:
+      prompt = VERIFY_EVENT.format(event_details=event_details)
+      response = generate(prompt, include_search=True, custom_tools=[get_url_content_tool])
+      return response
+    else:
+        return None
 
 @app.command()
 def main(priority: Annotated[str, typer.Option(prompt=True, help="Priority of the locations to be scanned (high/medium/low/all)")] = "high",
