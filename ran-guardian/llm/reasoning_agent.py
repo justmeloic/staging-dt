@@ -131,7 +131,7 @@ class ReasoningAgent:
 
         if os.environ.get("DEBUG_REASONING_AGENT", "false") == "true":
             self.handler = logging.FileHandler(
-                f"agent_{issue.issue_id}_{node_id}.log", mode="w"
+                f"agent_{issue.issue_id}_{node_id}.log", mode="a"
             )
             self.handler.setFormatter(log_formatter)
             self.logger.addHandler(self.handler)
