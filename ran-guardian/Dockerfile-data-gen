@@ -24,4 +24,4 @@ COPY .env .
 # Expose the ports
 EXPOSE 8001
 
-CMD ["poetry run uvicorn data_generator.main:app --port 8001 --host 0.0.0.0 &"]
+CMD ["poetry", "run", "uvicorn", "data_generator.main:app", "--port", "8001", "--host", "0.0.0.0"]
