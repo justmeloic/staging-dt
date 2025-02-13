@@ -154,7 +154,7 @@ def dedup_events_per_location(event_location):
         logger.info(f"Retrieved {len(duplicate_events)} duplicate events in location {event_location}")
     except Exception as e:
         logger.warning(f"Could not parse the events: {e}")
-        raise e
+        logger.warning(f"Raw Gemini response: {response}")
     
     deleted_events = 0
     for event in duplicate_events:
