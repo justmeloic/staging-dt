@@ -25,7 +25,4 @@ COPY .env .
 EXPOSE 8501
 
 # Start script to run all applications
-COPY docker-start-events-explorer.sh /app/docker-start-events-explorer.sh
-RUN chmod +x /app/docker-start-events-explorer.sh
-
-CMD ["/app/docker-start-events-explorer.sh"]
+CMD ["poetry", "run", "streamlit", "run", "event_scout/st_events_explorer_ui.py", "--server.port=8501", "--server.headless=true"]
