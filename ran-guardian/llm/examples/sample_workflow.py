@@ -14,7 +14,7 @@ LOCATION = os.environ.get("VERTEXAI_LOCATION")
 
 logger = logging.getLogger("llm.reasoning_agent")
 logger.setLevel(logging.INFO)
-handler = logging.FileHandler("agent.log", mode="w")
+handler = logging.FileHandler("agent.log", mode="a")
 formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
 handler.setFormatter(formatter)
 logger.addHandler(handler)

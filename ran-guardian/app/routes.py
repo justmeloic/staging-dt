@@ -51,9 +51,25 @@ async def health_check():
 # Issue management
 # ---
 # --- Issue management ---
-@router.get("/issues", response_model=List[Issue])  # Type hint
+@router.get("/issues", response_model=List[dict])  # Type hint
 async def get_issues(data_manager: DataManager = Depends(get_data_manager)):
-    return await data_manager.get_issues()
+    issues = await data_manager.get_issues()
+    events = []
+    for issue in issues:
+        event = None
+        event_id = issue.event_id
+        if event_id:
+            event = await data_manager.get_event(event_id)
+            if event:
+                events.append(event.model_dump())
+        if not event:
+            events.append({})
+
+    payload = []
+    for issue, event in zip(issues, events):
+        payload.append({"issue": issue.model_dump(), "event": event})
+
+    return payload
 
 
 @router.get("/issues/{issue_id}")
