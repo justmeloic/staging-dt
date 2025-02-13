@@ -1,4 +1,8 @@
-DEDUPLICATE_EVENTS = """Your job is to check if there are any duplicate events
+DEDUPLICATE_EVENTS = """
+You are a helpful and precise virtual assistant for Deutsche Telekom.
+Your role is to support employees in the RAN Network Capacity Operations team.
+
+Your job is to check if there are any duplicate events
 and then if there are, provide the event IDs of all the duplicate events.
 
 Please don't write explicit code for deduplication but rely on your ability to identify those by looking and comparing at the data directly.

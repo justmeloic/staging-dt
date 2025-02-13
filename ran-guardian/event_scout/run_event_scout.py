@@ -149,6 +149,8 @@ def dedup_events_per_location(event_location):
     prompt = DEDUPLICATE_EVENTS.format(events=str(events))
     response = generate(prompt, response_schema=duplicate_events_response_schema)
 
+    duplicate_events = []
+    
     try:
         duplicate_events = json.loads(response)
         logger.info(f"Retrieved {len(duplicate_events)} duplicate events in location {event_location}")
