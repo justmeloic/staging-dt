@@ -8,7 +8,6 @@ from typing import Dict, List, Optional
 from app.agent import Agent
 from app.data_manager import DataManager
 from app.models import Issue, IssueStatus
-from app.network_manager import NetworkConfigManager
 from dotenv import load_dotenv
 from fastapi import APIRouter, Depends, HTTPException, Request
 from google.cloud import firestore
@@ -28,10 +27,6 @@ async def get_data_manager():
     return DataManager(project_id=PROJECT_ID)  # Or however you initialize it
 
 
-async def get_network_config_manager():
-    return NetworkConfigManager()  # Or use dependency injection
-
-
 @router.get("/")
 async def hello_agent():
     return "Welcome to RAN Guardian Agent!"
@@ -45,6 +40,28 @@ async def hello_agent():
 @router.get("/health")
 async def health_check():
     return {"status": "OK"}
+
+
+@router.get("/start")
+async def start_agent(request: Request):
+    """Stream real-time logs from the agent using Server-Sent Events (SSE)"""
+    if not hasattr(request.app.state, "agent"):
+        raise HTTPException(status_code=503, detail="Agent not initialized")
+
+    agent = request.app.state.agent
+    await agent.start()
+    return {"status": "Agent started"}
+
+
+@router.get("/stop")
+async def start_agent(request: Request):
+    """Stream real-time logs from the agent using Server-Sent Events (SSE)"""
+    if not hasattr(request.app.state, "agent"):
+        raise HTTPException(status_code=503, detail="Agent not initialized")
+
+    agent = request.app.state.agent
+    await agent.stop()
+    return {"status": "Agent stopped"}
 
 
 # ---
@@ -121,28 +138,6 @@ async def reject_issue(
     return await data_manager.update_issue(
         issue_id, {"status": "rejected", "updated_at": firestore.SERVER_TIMESTAMP}
     )
-
-
-# ---
-# Network config
-# ---
-# @router.get("/network-config/propose/{issue_id}")
-# async def get_network_config_proposal(
-#     issue_id: str,
-#     network_manager: NetworkConfigManager = Depends(get_network_config_manager),
-# ):
-#     """Get a network configuration proposal for a specific issue"""
-#     return await network_manager.get_network_config_proposal(issue_id)
-
-
-# @router.post("/network-config/run/{proposal_id}")
-# async def run_network_config_proposal(
-#     proposal_id: str,
-#     config: Optional[dict] = None,
-#     network_manager: NetworkConfigManager = Depends(get_network_config_manager),
-# ):
-#     """Trigger network configuration changes based on the proposed config"""
-#     return await network_manager.run_network_config_proposal(proposal_id, config)
 
 
 @router.get("/logs/stream")

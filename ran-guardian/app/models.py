@@ -103,6 +103,9 @@ class PerformanceData(BaseModel):
     timestamp: datetime
     rrc_max_users: int
     rrc_setup_sr_pct: float
+    erab_ssr_volte_pct: Optional[float] = None
+    erab_ssr_data_pct: Optional[float] = None
+    download_throughput: Optional[float] = None
     # Various performance metrics
 
 
@@ -171,6 +174,7 @@ class Issue(BaseModel):
     created_at: datetime = Field(default_factory=datetime.now)
     updated_at: datetime = Field(default_factory=datetime.now)
     updates: List[IssueUpdate] = Field(default_factory=list)  # Simplified history
+    recommendation: Optional[str] = None
     summary: Optional[str] = None
     tasks: Optional[list[Task]] = None
 
@@ -209,6 +213,12 @@ class RiskLevel(str, Enum):
     LOW = "low"
     MEDIUM = "medium"
     HIGH = "high"
+    ESCALATE = "escalate"
+
+
+class RiskEvalResult(BaseModel):
+    risk_level: RiskLevel
+    reasoning: str
 
 
 # output of evaluate event risk

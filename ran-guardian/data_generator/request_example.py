@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 
 import requests
 
-BASE_URL = "http://127.0.0.1:8000"  # Example: Local development server
+BASE_URL = "http://127.0.0.1:8001"  # Example: Local development server
 
 # Example for /performances
 node_id = "64506186.0"  # this has to be a 4G node which already exists
@@ -20,11 +20,11 @@ payload = {
 
 url = BASE_URL + "/performances"
 headers = {"Content-Type": "application/json"}
-response = requests.get(url, headers=headers, data=json.dumps(payload), timeout=30)
+response = requests.post(url, headers=headers, data=json.dumps(payload), timeout=30)
 print(response.content)
 
 
 url = BASE_URL + "/alarms"
 headers = {"Content-Type": "application/json"}
-response = requests.get(url, headers=headers, data=json.dumps(payload), timeout=30)
+response = requests.post(url, headers=headers, data=json.dumps(payload), timeout=30)
 print(response.content)
