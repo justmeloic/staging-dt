@@ -32,7 +32,8 @@ logger = logging.getLogger(__name__)
 
 MOCK_DATA_SERVER_URL = os.getenv("MOCK_DATA_SERVER_URL")
 TIME_INTERVAL = int(os.getenv("TIME_INTERVAL"))
-MAX_NUM_EVENTS = int(os.getenv("MAX_NUM_EVENTS", 10))
+MAX_NUM_EVENTS = int(os.getenv("MAX_NUM_EVENTS", 5))
+MAX_NUM_ISSUES = int(os.getenv("MAX_NUM_ISSUES", 2))
 
 
 # utility functions.. TODO: Move to utilities
@@ -88,6 +89,9 @@ class DataManager:
             issue = Issue.from_firestore_doc(doc)
             if issue:
                 issues.append(issue)
+                # TODO: remove the hack to limit max num issues
+            if len(issues) >= MAX_NUM_ISSUES:
+                break
         logger.info(f"[get_issues]: finished with {len(issues)} issues retrieved")
         return issues
 
@@ -333,6 +337,7 @@ class DataManager:
         url = MOCK_DATA_SERVER_URL + "/performances"
         headers = {"Content-Type": "application/json"}
         perf = []
+
         try:
             response = requests.post(
                 url, headers=headers, data=json.dumps(payload), timeout=30
@@ -346,6 +351,10 @@ class DataManager:
                             timestamp=d["timestamp"],
                             rrc_max_users=d["Max_RRC_Conn_User"],
                             rrc_setup_sr_pct=d["RRC_Estab_SR_pct"],
+                            erab_ssr_volte_pct=d["eRAB_SSR_Data_pct"],
+                            erab_ssr_data_pct=d["eRAB_SSR_VoLTE_pct"],
+                            download_throughput=d["Traffic_Data_Vol_DL_MiB"],
+                            upload_throughput=d["Traffic_Data_Vol_UL_MiB"],
                         )
                     )
             else:

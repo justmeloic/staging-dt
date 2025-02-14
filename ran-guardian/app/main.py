@@ -5,7 +5,6 @@ from contextlib import asynccontextmanager
 
 from app.agent import Agent
 from app.data_manager import DataManager
-from app.network_manager import NetworkConfigManager
 from app.routes import router
 from dotenv import load_dotenv
 from fastapi import FastAPI
@@ -19,10 +18,9 @@ logging.basicConfig(
 
 # Initialize your managers
 data_manager = DataManager(project_id=PROJECT_ID)
-network_manager = NetworkConfigManager()
 
 # Create agent instance
-agent = Agent(data_manager, network_manager)
+agent = Agent(data_manager)
 
 
 @asynccontextmanager
@@ -31,15 +29,15 @@ async def lifespan(app: FastAPI):
     app.state.agent = agent
 
     # Start agent task on startup
-    if os.environ.get("START_AGENT_ON_STARTUP", "true") == "true":
-        agent_task = asyncio.create_task(agent.start())
+    # if os.environ.get("START_AGENT_ON_STARTUP", "true") == "true":
+    #    agent_task = asyncio.create_task(agent.start())
 
     yield  # Run FastAPI
 
     # Cleanup on shutdown
-    if os.environ.get("START_AGENT_ON_STARTUP", "true") == "true":
-        await agent.stop()
-        await agent_task
+    # if os.environ.get("START_AGENT_ON_STARTUP", "true") == "true":
+    #    await agent.stop()
+    #    await agent_task
 
 
 app = FastAPI(

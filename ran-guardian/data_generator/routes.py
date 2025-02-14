@@ -11,7 +11,7 @@ from dotenv import load_dotenv
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
 # copy paste from app.models
-from google.cloud import bigquery, firestore, storage
+from google.cloud import bigquery
 from google.cloud.bigquery import enums
 from pydantic import BaseModel, Field
 
