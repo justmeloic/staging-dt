@@ -32,8 +32,8 @@ logger = logging.getLogger(__name__)
 
 MOCK_DATA_SERVER_URL = os.getenv("MOCK_DATA_SERVER_URL")
 TIME_INTERVAL = int(os.getenv("TIME_INTERVAL"))
-MAX_NUM_EVENTS = int(os.getenv("MAX_NUM_EVENTS", 5))
-MAX_NUM_ISSUES = int(os.getenv("MAX_NUM_ISSUES", 2))
+MAX_NUM_EVENTS = int(os.getenv("MAX_NUM_EVENTS", 10))
+MAX_NUM_ISSUES = int(os.getenv("MAX_NUM_ISSUES", 10))
 
 
 # utility functions.. TODO: Move to utilities
@@ -123,9 +123,14 @@ class DataManager:
             return None
 
     async def create_issue(
-        self, event: Event, event_risk: EventRisk, summary: str
+        self,
+        event: Event,
+        event_risk: EventRisk,
+        summary: Optional[str] = None,
+        recommendation: Optional[str] = None,
     ) -> str:
         # this function is probably not working well
+        # TODO: the logic needs to be moved to agent, not data manager!!!
         """Creates a new issue in Firestore with data provided in the dictionary. Returns issue_id."""
         logger.info(f"[create_issue]: start ...")
         issue_id = event.event_id  # using the same id as even
@@ -143,7 +148,11 @@ class DataManager:
                     "status": IssueStatus.ANALYZING,
                     "updated_at": datetime.now(),
                     "event_risk": event_risk.model_dump(),
-                    "summary": summary,
+                    "node_ids": [
+                        s.node_id for s in event_risk.node_summaries if s.is_problematic
+                    ],
+                    "summary": summary or "",
+                    "recommendation": recommendation or "",
                 }
                 issue_ref.update(updates)
                 logger.info(f"[create_issue]: finished with issue {issue_id} reopened")
@@ -159,7 +168,8 @@ class DataManager:
                     s.node_id for s in event_risk.node_summaries if s.is_problematic
                 ],
                 event_risk=event_risk,
-                summary=summary,
+                summary=summary or "",
+                recommendation=recommendation or "",
                 status=IssueStatus.NEW,
                 created_at=datetime.now(),
             )
@@ -371,10 +381,10 @@ class DataManager:
     # Alarm data
     # -------------------
 
-    async def get_alarms(self, node_id: str) -> List[Alarm]:
+    async def get_alarms(self, site_id: str) -> List[Alarm]:
         logger.debug(f"[get_alarms]: start ...")
         payload = {
-            "node_id": node_id,
+            "node_id": site_id,
         }
 
         url = MOCK_DATA_SERVER_URL + "/alarms"
@@ -394,7 +404,7 @@ class DataManager:
             logger.exception(f"Error fetching alarm data from {url}")
         finally:
             logger.debug(
-                f"[get_alarms]: finished with {len(alarms)} alarms retrieved for node {node_id}"
+                f"[get_alarms]: finished with {len(alarms)} alarms retrieved for node {site_id}"
             )
             return alarms
 
@@ -475,7 +485,7 @@ class DataManager:
             ST_GEOGPOINT({lng}, {lat}) -- Replace with your target longitude and latitude (e.g., Chicago)
         ) <= {radius} -- 5000 meters = 5 kilometers
         AND CELLS_4G IS NOT NULL
-        LIMIT 5;
+        LIMIT 2;
         """
         formatted_query = QUERY.format(
             lng=location.longitude, lat=location.latitude, radius=radius

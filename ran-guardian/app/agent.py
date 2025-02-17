@@ -27,7 +27,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class AgentConfig:
     run_interval: int = 5  # minutes
-    lookforward_period: int = 24  # hours
+    lookforward_period: int = 24 * 14  # hours
     monitoring_period: int = 15  # minutes
     concurrency_limit: int = 5  # max. num of reasoning agents to run concurrently
 
@@ -283,7 +283,9 @@ class Agent:
     async def _create_recommendation(self, event, event_risk: EventRisk) -> str:
         logger.info("[_create_recommendation]: start ...")
         # replace with some gemini magic here)
-        recommendation = self.llm_helper.recommend_network_config(event, event_risk)
+        recommendation = await self.llm_helper.recommend_network_config(
+            event, event_risk
+        )
         logger.info(f"[_create_recommendation]: finished with recommendation created")
         return recommendation
 

@@ -65,6 +65,31 @@ async def start_agent(request: Request):
 
 
 # ---
+# Event management
+# ---
+
+
+@router.put("/events/process/{event_id}")
+async def process_event(
+    event_id: str,
+    request: Request,
+    data_manager: DataManager = Depends(get_data_manager),
+):
+    """Get summary statistics of issues"""
+    if not hasattr(request.app.state, "agent"):
+        raise HTTPException(status_code=503, detail="Agent not initialized")
+
+    agent = request.app.state.agent
+    event = await data_manager.get_event(event_id=event_id)
+    if not event:
+        raise HTTPException(status_code=404, detail="Issue not found")
+
+    await agent._process_event(event)
+
+    return
+
+
+# ---
 # Issue management
 # ---
 # --- Issue management ---
@@ -111,9 +136,31 @@ async def update_issue(
 
 
 @router.get("/issues/stats")
-async def get_issue_stats(data_manager: DataManager = Depends(get_data_manager)):
+async def get_issue_stats(
+    issue_id: str, data_manager: DataManager = Depends(get_data_manager)
+):
     """Get summary statistics of issues"""
-    return await data_manager.get_issue_stats()
+    return ...
+
+
+@router.put("/issues/process/{issue_id}")
+async def process_issue(
+    issue_id: str,
+    request: Request,
+    data_manager: DataManager = Depends(get_data_manager),
+):
+    """Get summary statistics of issues"""
+    if not hasattr(request.app.state, "agent"):
+        raise HTTPException(status_code=503, detail="Agent not initialized")
+
+    agent = request.app.state.agent
+    issue = await data_manager.get_issue(issue_id)
+    if not issue:
+        raise HTTPException(status_code=404, detail="Issue not found")
+
+    await agent._process_issue(issue)
+
+    return
 
 
 @router.post("/issues/approve/{issue_id}")
