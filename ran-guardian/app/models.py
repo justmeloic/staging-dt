@@ -32,6 +32,7 @@ class Location(BaseModel):
 class Event(BaseModel):
     event_id: str
     location: Location  # {latitude: float, longitude: float}
+    city: str
     start_date: datetime
     end_date: datetime
     name: str
@@ -68,6 +69,7 @@ class Event(BaseModel):
             return cls(
                 event_id=doc_id,
                 location=location,
+                city=doc_data.get("location"),
                 start_date=start_date,
                 end_date=end_date,
                 name=doc_data.get("name"),

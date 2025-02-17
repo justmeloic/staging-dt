@@ -1,4 +1,5 @@
 import asyncio
+import hashlib
 import json
 import logging
 import os
@@ -211,24 +212,37 @@ async def get_performance(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+def _generate_row_num(node_id: str, start_time: datetime, end_time: datetime):
+    start_time_str = start_time.strftime("%Y-%m-%d")  # only use start date
+    combined_str = f"{node_id}|{start_time_str}"
+    hashed_bytes = hashlib.sha256(combined_str.encode("utf-8")).digest()
+    row_num = (
+        int.from_bytes(hashed_bytes[:8], byteorder="big", signed=False) % 497
+    )  # hard coded total row number
+    return row_num
+
+
 @router.post("/alarms", response_model=List[Alarm])  # Type hint
 async def get_alarms(node_time_range: NodeTimeRange):
+    # here the alarm data should be issued by site id
     node_id, start_time, end_time = _parse_node_time_range(node_time_range)
+
+    row_num = _generate_row_num(node_id, start_time, end_time)
 
     if np.random.rand() > EVENT_PROBA:
         # no alarm for the node
         return []
-    n_row = np.random.choice(range(1, 4))
+    n_row = row_num % 3  # choose max 3 rows
     query = f"""
         SELECT *
         FROM (
         SELECT
             *,
-            ROW_NUMBER() OVER (ORDER BY RAND()) as row_num
+            ROW_NUMBER() OVER (ORDER BY EVENTTIME) AS row_num
         FROM
             `{PROJECT_ID}.ran_guardian.alarm`
         )
-        WHERE row_num BETWEEN 1 AND {n_row};
+        WHERE row_num between {row_num} and {row_num + n_row};
     """
     # Note: we mock the data by randomly select one
     try:
