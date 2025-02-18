@@ -71,7 +71,7 @@ def is_out_dated(doc_time: datetime, time_interval: int):
         time_threshold = datetime.now(timezone.utc) - timedelta(minutes=time_interval)
     else:
         time_threshold = datetime.now() - timedelta(minutes=time_interval)
-    return doc_time >= time_threshold
+    return doc_time <= time_threshold
 
 
 class DataManager:
@@ -87,14 +87,30 @@ class DataManager:
     # Issue management
     # -------------------
 
-    async def get_issues(
+    async def get_issues(self, max_num_issues: Optional[int] = None) -> List[Issue]:
+        logger.info("[get_issues]: start ...")
+        # TODO: need to sort issues by start and end date of event as well as criticality
+        issues_ref = self.manager_db.collection("issues")
+        issues = []
+        for doc in issues_ref.stream():
+            issue = Issue.from_firestore_doc(doc)
+            if issue:
+                issues.append(issue)
+            if max_num_issues and len(issues) >= max_num_issues:
+                break
+        logger.info(
+            f"[get_issues_for_analysis]: finished with {len(issues)} issues retrieved"
+        )
+        return issues
+
+    async def get_issues_for_analysis(
         self,
         start_time: Optional[datetime] = None,
         end_time: Optional[datetime] = None,
         max_num_issues: Optional[int] = None,
     ) -> List[Issue]:
         """Retrieves all issue data from Firestore and returns a list of Issues."""
-        logger.info("[get_issues]: start ...")
+        logger.info("[get_issues_for_analysis]: start ...")
         # TODO: need to sort issues by start and end date of event as well as criticality
         issues_ref = self.manager_db.collection("issues")
         issues = []
@@ -108,7 +124,9 @@ class DataManager:
                 # TODO: remove the hack to limit max num issues
             if max_num_issues and len(issues) >= max_num_issues:
                 break
-        logger.info(f"[get_issues]: finished with {len(issues)} issues retrieved")
+        logger.info(
+            f"[get_issues_for_analysis]: finished with {len(issues)} issues retrieved"
+        )
         return issues
 
     async def sort_issues(self):
