@@ -2,7 +2,7 @@ import json
 import logging
 import os
 import pickle
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional, Tuple
 
 import numpy as np
@@ -34,6 +34,7 @@ MOCK_DATA_SERVER_URL = os.getenv("MOCK_DATA_SERVER_URL")
 TIME_INTERVAL = int(os.getenv("TIME_INTERVAL"))
 MAX_NUM_EVENTS = int(os.getenv("MAX_NUM_EVENTS", 10))
 MAX_NUM_ISSUES = int(os.getenv("MAX_NUM_ISSUES", 10))
+MAX_NUM_NODE_PER_EVENT = int(os.getenv("MAX_NUM_NODE_PER_EVENT", 10))
 
 
 # utility functions.. TODO: Move to utilities
@@ -65,6 +66,14 @@ def check_date(
     return res
 
 
+def is_out_dated(doc_time: datetime, time_interval: int):
+    if doc_time.tzinfo:
+        time_threshold = datetime.now(timezone.utc) - timedelta(minutes=time_interval)
+    else:
+        time_threshold = datetime.now() - timedelta(minutes=time_interval)
+    return doc_time >= time_threshold
+
+
 class DataManager:
     def __init__(self, project_id: str, manager_db: str = "ran-guardian-data-manager"):
         logger.info("[DataManager.__init__]: start ...")
@@ -78,19 +87,26 @@ class DataManager:
     # Issue management
     # -------------------
 
-    async def get_issues(self) -> List[Issue]:
+    async def get_issues(
+        self,
+        start_time: Optional[datetime] = None,
+        end_time: Optional[datetime] = None,
+        max_num_issues: Optional[int] = None,
+    ) -> List[Issue]:
         """Retrieves all issue data from Firestore and returns a list of Issues."""
         logger.info("[get_issues]: start ...")
+        # TODO: need to sort issues by start and end date of event as well as criticality
         issues_ref = self.manager_db.collection("issues")
-        docs = issues_ref.stream()
-
         issues = []
-        for doc in docs:
+        for doc in issues_ref.stream():
+            if not is_out_dated(doc.get("updated_at"), TIME_INTERVAL):
+                # skip the issues which have just been evalutate
+                continue
             issue = Issue.from_firestore_doc(doc)
             if issue:
                 issues.append(issue)
                 # TODO: remove the hack to limit max num issues
-            if len(issues) >= MAX_NUM_ISSUES:
+            if max_num_issues and len(issues) >= max_num_issues:
                 break
         logger.info(f"[get_issues]: finished with {len(issues)} issues retrieved")
         return issues
@@ -140,27 +156,13 @@ class DataManager:
         doc = issue_ref.get()
 
         if doc.exists:
-            issue_dict = doc.to_dict()
-            current_status = issue_dict["status"]
-            if current_status == IssueStatus.RESOLVED.value:
-                # Reopen
-                updates = {
-                    "status": IssueStatus.ANALYZING,
-                    "updated_at": datetime.now(),
-                    "event_risk": event_risk.model_dump(),
-                    "node_ids": [
-                        s.node_id for s in event_risk.node_summaries if s.is_problematic
-                    ],
-                    "summary": summary or "",
-                    "recommendation": recommendation or "",
-                }
-                issue_ref.update(updates)
-                logger.info(f"[create_issue]: finished with issue {issue_id} reopened")
-            else:
-                logger.info(
-                    f"[create_issue]: finished with issue {issue_id} already exists, no action taken"
-                )
+            # this should never be called since we skip all the events with an issue already created.
+            logger.info(
+                f"[create_issue]: finished with issue {issue_id} already exists"
+            )
+            return doc.id
         else:
+            now_time = datetime.now()
             issue = Issue(
                 issue_id=issue_id,
                 event_id=event.event_id,
@@ -171,7 +173,8 @@ class DataManager:
                 summary=summary or "",
                 recommendation=recommendation or "",
                 status=IssueStatus.NEW,
-                created_at=datetime.now(),
+                created_at=now_time,
+                updated_at=now_time,
             )
             issue_ref.set(issue.model_dump())
             logger.info(f"[create_issue]: finished with issue {issue_id} created")
@@ -264,7 +267,7 @@ class DataManager:
         start_time: Optional[datetime] = None,
         end_time: Optional[datetime] = None,
         location: Optional[str] = None,
-        max_num_event: Optional[int] = MAX_NUM_EVENTS,
+        max_num_event: Optional[int] = None,
     ):
         logger.info("[get_events]: start ...")
         event_collection = self.manager_db.collection("events")
@@ -282,6 +285,9 @@ class DataManager:
 
         events = []
         for doc in event_collection.stream():
+            # we skip those which already has an issue_id
+            if "issue_id" in doc.to_dict():
+                continue
             try:
                 event = Event.from_firestore_doc(doc.id, doc.to_dict())
                 events.append(event)
@@ -506,6 +512,8 @@ class DataManager:
                         capacity=np.random.randint(100, 500),
                     )  # mock the capacity for now
                 )
+        if MAX_NUM_NODE_PER_EVENT:
+            nodes = nodes[:MAX_NUM_NODE_PER_EVENT]
         logger.info(f"[get_nearby_nodes]: finished with {len(nodes)} nodes retrieved")
         return nodes
 
