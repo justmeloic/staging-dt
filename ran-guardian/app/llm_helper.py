@@ -93,6 +93,13 @@ class LLMHelper:
                 description=msg,
             )
 
+    @retry.Retry(
+        predicate=retry.if_transient_error,
+        initial=2.0,
+        maximum=64.0,
+        multiplier=2.0,
+        timeout=600,
+    )
     async def assess_node_risk(self, node_summary: NodeSummary) -> NodeSummary:
         try:
             response = self.client.models.generate_content(
@@ -156,14 +163,3 @@ class LLMHelper:
             msg = f"Failed to automatically generate configuration recommendation due to: {e}"
             logger.error(msg)
             return msg
-
-    async def evaluate_severity(self, issue: Dict) -> bool:
-        """Evaluate if an issue requires human attention"""
-        # return True if random.random() < 0.1 else False
-        return False
-
-    async def evaluate_resolution_success(
-        self, issue: Dict, performance_data: List[Dict]
-    ) -> ResolutionResult:
-        """Evaluate if the applied changes have resolved the issue"""
-        return ResolutionResult(is_resolved=True, confidence=0.95)

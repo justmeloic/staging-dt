@@ -40,6 +40,7 @@ class Event(BaseModel):
     event_type: str
     size: str
     issue_id: Optional[str] = None
+    processed_at: Optional[datetime] = None
 
     @classmethod
     def from_firestore_doc(cls, doc_id: str, doc_data: dict) -> Optional["Event"]:
@@ -77,6 +78,7 @@ class Event(BaseModel):
                 event_type=doc_data.get("event_type"),
                 size=doc_data.get("size"),
                 issue_id=doc_data.get("issue_id"),
+                processed_at=doc_data.get("processed_at"),
             )
 
         except (ValueError, TypeError, KeyError) as e:
@@ -99,7 +101,6 @@ class Site(BaseModel):
     nodes: List[NodeData]
 
 
-# TODO: need to be updated to match the description in data_generator
 class PerformanceData(BaseModel):
     node_id: str
     timestamp: datetime

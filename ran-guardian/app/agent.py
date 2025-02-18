@@ -30,6 +30,7 @@ class AgentConfig:
     lookforward_period: int = 24 * 14  # hours
     monitoring_period: int = 15  # minutes
     concurrency_limit: int = 5  # max. num of reasoning agents to run concurrently
+    batch_size: int = 20
 
 
 class AgentLogger:
@@ -76,12 +77,14 @@ class Agent:
         self._task: Optional[asyncio.Task] = None
         self.logger = AgentLogger()
         self.agent_semaphore = asyncio.Semaphore(self.config.concurrency_limit)
+        self.batch_size = self.config.batch_size
 
     async def _run(self):
         """Internal method to run periodic tasks"""
         while True:
             try:
                 logger.info("[_run]: start process cycle ...")
+                self.last_run = datetime.now()
                 await self._process_event_cycle()
                 await self.data_manager.sort_issues()
                 await self._process_issue_cycle()
@@ -92,8 +95,9 @@ class Agent:
 
     async def _process_event_cycle(self):
         """Run a single processing cycle"""
-        logger.info("[_process_event_cycle]: start ...")
-        self.last_run = datetime.now()
+        logger.info(
+            f"[_process_event_cycle]: start running event cycle with batch size {self.batch_size}..."
+        )
         events = await self._get_events()
         await asyncio.gather(*[self._process_event(event) for event in events])
         logger.info(
@@ -102,8 +106,15 @@ class Agent:
 
     async def _process_issue_cycle(self):
         """Run a single processing cycle"""
-        logger.info("[_process_issue_cycle]: start ...")
-        issues = await self.data_manager.get_issues()
+        logger.info(
+            f"[_process_issue_cycle]: start running issue cycle with batch size {self.batch_size}..."
+        )
+        start_time = self.last_run
+        end_time = start_time + timedelta(hours=self.config.lookforward_period)
+
+        issues = await self.data_manager.get_issues(
+            start_time=start_time, end_time=end_time, max_num_issues=self.batch_size
+        )
         issue_tasks = [self._process_issue(issue) for issue in issues]
         await asyncio.gather(*issue_tasks)  # added await here
         logger.info(
@@ -112,10 +123,10 @@ class Agent:
 
     async def _get_events(self, location: Optional[str] = None) -> List[Event]:
         logger.info("[_get_events]: start ...")
-        start_time = datetime.now()
+        start_time = self.last_run
         end_time = start_time + timedelta(hours=self.config.lookforward_period)
         events = await self.data_manager.get_events(
-            start_time, end_time, location=location
+            start_time, end_time, location=location, max_num_event=self.batch_size
         )
         logger.info(f"[_get_events]: finished with {len(events)} events fetched")
         return events
@@ -141,6 +152,7 @@ class Agent:
             )
             return
         else:
+            # when to skip event...
             if await self._event_has_wip_issue(event):
                 logger.info(
                     f"[_process_event]: finished with event {event.event_id} already has WIP issue, skipped"
@@ -155,7 +167,8 @@ class Agent:
                 )
                 issue_id = await self._create_issue(event, event_risk, recommendation)
                 await self.data_manager.update_event(
-                    event.event_id, {"issue_id": issue_id}
+                    event.event_id,
+                    {"issue_id": issue_id, "processed_at": datetime.now()},
                 )
                 logger.info(
                     f"[_process_event]: finished with issue {issue_id} created for event {event.event_id}"
@@ -221,9 +234,7 @@ class Agent:
         return issue_id
 
     def _issue_needs_eval(self, issue: Issue):
-        if (not issue.event_risk) or (not issue.node_ids):
-            return True
-
+        # TODO: review logic!
         if issue.updated_at.tzinfo:
             time_threshold = datetime.now(timezone.utc) - timedelta(
                 minutes=TIME_INTERVAL
@@ -251,7 +262,8 @@ class Agent:
         event_risk = await self._evaluate_event_risk(event=event)
         event_updates["event_risk"] = event_risk.model_dump()
         event_updates["node_ids"] = [s.node_id for s in event_risk.node_summaries]
-        event_updates["status"] = IssueStatus.ANALYZING
+        if issue.status == IssueStatus.NEW:
+            event_updates["status"] = IssueStatus.ANALYZING
         await self.data_manager.update_issue(issue.issue_id, updates=event_updates)
         return
 
@@ -271,7 +283,7 @@ class Agent:
 
     async def _evaluate_if_human_intervention(self, issue: Issue) -> bool:
         logger.info("[_evaluate_if_human_intervention]: start ...")
-        # replace with some gemini magic here
+
         if not (issue.node_ids) or issue.status == IssueStatus.PENDING_APPROVAL:
             # if we don't find any nodes near the issue or the issue is in a pending approval stage
             result = True
@@ -434,8 +446,15 @@ class Agent:
     async def run_once(self):
         """Internal method to run periodic tasks"""
         logger.info("[run_once]: start ...")
-        event_cycle_result = await self._process_event_cycle()
-        issue_cycle_result = await self._process_issue_cycle()
+        try:
+            logger.info("[_run]: start process cycle ...")
+            self.last_run = datetime.now()
+            await self._process_event_cycle()
+            await self.data_manager.sort_issues()
+            await self._process_issue_cycle()
+            logger.info("[_run]: finished cycle")
+        except Exception as e:
+            logger.error(f"Exiting current run cycle due to: {e}")
         logger.info("[run_once]: finished with event and issue cycles completed")
 
 
