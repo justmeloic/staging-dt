@@ -64,6 +64,17 @@ async def start_agent(request: Request):
     return {"status": "Agent stopped"}
 
 
+@router.get("/run_one_batch")
+async def start_agent(request: Request):
+    """Stream real-time logs from the agent using Server-Sent Events (SSE)"""
+    if not hasattr(request.app.state, "agent"):
+        raise HTTPException(status_code=503, detail="Agent not initialized")
+
+    agent = request.app.state.agent
+    await agent.run_once()
+    return {"status": "Agent stopped"}
+
+
 # ---
 # Event management
 # ---
@@ -143,7 +154,7 @@ async def get_issue_stats(
     return ...
 
 
-@router.put("/issues/process/{issue_id}")
+@router.get("/process_issue/{issue_id}")
 async def process_issue(
     issue_id: str,
     request: Request,
@@ -161,6 +172,33 @@ async def process_issue(
     await agent._process_issue(issue)
 
     return
+
+
+@router.get("/process_issues")
+async def process_all_issues(
+    request: Request,
+):
+    """Get summary statistics of issues"""
+    logger.info("lululalallulu")
+    if not hasattr(request.app.state, "agent"):
+        raise HTTPException(status_code=503, detail="Agent not initialized")
+    agent = request.app.state.agent
+    await agent._process_issue_cycle()
+
+    return
+
+
+@router.post("/issues/disapprove/{issue_id}")
+async def disapprove_issue(
+    issue_id: str,
+    message: Optional[str] = None,
+    data_manager: DataManager = Depends(get_data_manager),
+):
+    """Update the issue status to approved"""
+    return await data_manager.update_issue(
+        issue_id,
+        {"status": "pending_approval", "updated_at": firestore.SERVER_TIMESTAMP},
+    )
 
 
 @router.post("/issues/approve/{issue_id}")
