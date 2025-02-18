@@ -39,7 +39,7 @@ with tab1:
   center_lat = geo_coordinates["lat"]
   center_lng = geo_coordinates["lng"]
 
-  df = pd.DataFrame(events).assign(size_num=lambda x: x["size"].map({"S": 100, "M": 500, "L": 750, "XL": 1000})).fillna(100)
+  df = pd.DataFrame(events).assign(size_num=lambda x: x["size"].map({"S": 50, "M": 200, "L": 300, "XL": 500})).fillna(100)
   df = df.dropna(subset=['lat', 'lng'])
 
   df["start_date_formatted"] = pd.to_datetime(df["start_date"], errors='coerce')
@@ -66,6 +66,12 @@ with tab1:
   filtered_df = df.copy()
   if selected_event_types:
       filtered_df = filtered_df[filtered_df['event_type'].isin(selected_event_types)]
+
+  unique_event_times = df['color'].unique()   
+  selected_event_times = st.sidebar.multiselect("Event Start Date", unique_event_times)
+
+  if selected_event_times:
+      filtered_df = filtered_df[filtered_df['color'].isin(selected_event_times)]
 
   unique_event_sizes = df['size'].unique()   
   selected_event_sizes = st.sidebar.multiselect("Event Size", unique_event_sizes)
