@@ -646,6 +646,11 @@ class DataManager:
     # API utils
     # -------------------
 
+    async def get_all_locations(self):
+        docs = self.event_db.collection("locations").stream()
+        locations = [doc.id for doc in docs if doc.id != "0_stats"]
+        return sorted(locations)
+
     async def build_get_issue_response_payload(
         self, issue_or_event_id: str
     ) -> Dict | None:
