@@ -263,6 +263,19 @@ async def stream_logs(request: Request):
     )
 
 
+# ---
+# Get locations
+# ---
+@router.get("/locations")
+async def get_locations(data_manager: DataManager = Depends(get_data_manager)):
+    return await data_manager.get_all_locations()
+
+
+# ---
+# Logs management
+# ---
+
+
 @router.get("/logs/recent")
 async def get_recent_logs(request: Request, limit: int = 100):
     return request.app.state.agent.logger.get_recent_logs(limit)
