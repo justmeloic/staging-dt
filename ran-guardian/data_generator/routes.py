@@ -77,6 +77,8 @@ def _shake(x, mode: str = "pct"):
         return np.clip(x * ratio, 0, 1)
     elif mode == "int":
         return int(x * ratio)
+    elif mode == "float":
+        return float(x * ratio)
     else:
         raise Exception("mode not implemented !")
 
@@ -194,14 +196,20 @@ async def get_performance(
                     Max_RRC_Conn_User=_shake(
                         perf.get("4G_ERI_Max_RRC_Conn_User"), mode="int"
                     ),
-                    RRC_Estab_SR_pct=_shake(perf.get("4G_ERI_RRC_Estab_SR_pct")),
-                    eRAB_SSR_VoLTE_pct=_shake(perf.get("4G_ERI_eRAB_SSR_VoLTE_pct")),
-                    eRAB_SSR_Data_pct=_shake(perf.get("4G_ERI_eRAB_SSR_Data_pct")),
+                    RRC_Estab_SR_pct=_shake(
+                        perf.get("4G_ERI_RRC_Estab_SR_pct"), mode="pct"
+                    ),
+                    eRAB_SSR_VoLTE_pct=_shake(
+                        perf.get("4G_ERI_eRAB_SSR_VoLTE_pct"), mode="pct"
+                    ),
+                    eRAB_SSR_Data_pct=_shake(
+                        perf.get("4G_ERI_eRAB_SSR_Data_pct"), mode="pct"
+                    ),
                     Traffic_Data_Vol_DL_MiB=_shake(
-                        perf.get("4G_ERI_Traffic_Data_Vol_DL_MiB")
+                        perf.get("4G_ERI_Traffic_Data_Vol_DL_MiB"), mode="float"
                     ),
                     Traffic_Data_Vol_UL_MiB=_shake(
-                        perf.get("4G_ERI_Traffic_Data_Vol_UL_MiB")
+                        perf.get("4G_ERI_Traffic_Data_Vol_UL_MiB", mode="float")
                     ),
                 )
             )

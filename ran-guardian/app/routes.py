@@ -149,12 +149,16 @@ async def update_issue(
     return await data_manager.update_issue(issue_id, updates)
 
 
-@router.get("/issues/stats")
-async def get_issue_stats(
-    issue_id: str, data_manager: DataManager = Depends(get_data_manager)
-):
+@router.get("/issues_stats")
+async def get_issue_stats(data_manager: DataManager = Depends(get_data_manager)):
     """Get summary statistics of issues"""
-    return ...
+    return await data_manager.get_issue_stats()
+
+
+@router.get("/event_stats")
+async def get_issue_stats(data_manager: DataManager = Depends(get_data_manager)):
+    """Get summary statistics of issues"""
+    return await data_manager.get_event_stats()
 
 
 @router.get("/process_issue/{issue_id}")

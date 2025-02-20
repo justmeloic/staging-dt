@@ -7,6 +7,7 @@ from dotenv import load_dotenv
 from event_scout.firestore_helper import db as origin_db
 from event_scout.firestore_helper import get_locations
 from google.cloud import bigquery, firestore
+from tqdm import tqdm
 
 load_dotenv()
 
@@ -14,6 +15,12 @@ PROJECT_ID = os.getenv("PROJECT_ID")
 NEW_DB_NAME = "ran-guardian-data-manager"
 
 new_db = firestore.Client(project=PROJECT_ID, database=NEW_DB_NAME)
+
+
+def get_all_locations(self):
+    docs = origin_db.collection("locations").stream()
+    locations = [doc.id for doc in docs if doc.id != "0_stats"]
+    return sorted(locations)
 
 
 def check_event(
@@ -48,19 +55,23 @@ def delete_all_events_from_new_db(
     print(f"deleted {n_docs} events from new events db")
 
 
-def save_event_to_new_db(event_date: dict, event_id: str):
-    _, doc_ref = new_db.collection("events").add(
-        document_data=event_date, document_id=event_id
-    )
+def save_event_to_new_db(event_data: dict, event_id: str):
+    event_ref = new_db.collection("events").document(event_id).get()
+    if event_ref.exists:
+        event_ref.update(event_data)
+    else:
+        _, doc_ref = new_db.collection("events").add(
+            document_data=event_data, document_id=event_id
+        )
 
 
 def main(start_date: Optional[datetime] = None, end_date: Optional[datetime] = None):
     # clean up the new db
+    # delete_all_events_from_new_db(start_date, end_date)
 
-    delete_all_events_from_new_db(start_date, end_date)
     n_doc = 0
-    locations = get_locations()
-    for location in locations:
+    locations = get_all_locations()
+    for location in tqdm(locations):
         events = origin_db.collection(location).stream()
         for event_doc in events:
             event_data = event_doc.to_dict()

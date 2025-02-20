@@ -26,7 +26,9 @@ from app.models import (
 from event_scout.firestore_helper import db as EVENT_DB
 from event_scout.firestore_helper import get_locations
 from google.cloud import bigquery, firestore, storage
+from google.cloud.firestore_v1 import aggregation
 from google.cloud.firestore_v1.base_query import FieldFilter
+from tqdm import tqdm
 
 logger = logging.getLogger(__name__)
 
@@ -236,12 +238,13 @@ class DataManager:
         stats = {}
         issues_ref = self.manager_db.collection("issues")
         for status in IssueStatus:
-            count = (
-                issues_ref.where(filter=FieldFilter("status", "==", status.value))
-                .count()
-                .get("count")
-            )
-            stats[status.value] = count
+            query = issues_ref.where(filter=FieldFilter("status", "==", status.value))
+            aggregate_query = aggregation.AggregationQuery(query)
+            # `alias` to provides a key for accessing the aggregate query results
+            aggregate_query.count(alias="all")
+            results = aggregate_query.get()
+            stats[status.value] = results[0][0].value
+
         logger.info(
             f"[get_issue_stats]: finished with stats for {len(IssueStatus)} issue statuses retrieved"
         )
@@ -250,6 +253,27 @@ class DataManager:
     # -------------------
     # Event management
     # -------------------
+
+    async def get_event_stats(self) -> Dict:
+        """Retrieves statistics on the number of issues for each status."""
+        logger.info("[get_issue_stats]: start ...")
+        all_sizes = ["S", "M", "L", "XL"]
+        stats = {size: 0 for size in all_sizes}
+        locations = await self.get_all_locations()
+        for location in tqdm(locations):
+            issues_ref = self.event_db.collection(location)
+            for size in all_sizes:
+                query = issues_ref.where(filter=FieldFilter("size", "==", size))
+                aggregate_query = aggregation.AggregationQuery(query)
+                # `alias` to provides a key for accessing the aggregate query results
+                aggregate_query.count(alias="all")
+                results = aggregate_query.get()
+                stats[size] += results[0][0].value
+
+        logger.info(
+            f"[get_issue_stats]: finished with stats for {len(IssueStatus)} issue statuses retrieved"
+        )
+        return stats
 
     # use gemini to parse date
 
