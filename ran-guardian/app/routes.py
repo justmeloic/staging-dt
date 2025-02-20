@@ -105,8 +105,11 @@ async def process_event(
 # ---
 # --- Issue management ---
 @router.get("/issues", response_model=List[dict])  # Type hint
-async def get_issues(data_manager: DataManager = Depends(get_data_manager)):
-    issues = await data_manager.get_issues()
+async def get_issues(
+    max_num_issues: Optional[int] = None,
+    data_manager: DataManager = Depends(get_data_manager),
+):
+    issues = await data_manager.get_issues(max_num_issues=max_num_issues)
     events = []
     for issue in issues:
         event = None
@@ -258,6 +261,19 @@ async def stream_logs(request: Request):
     return EventSourceResponse(
         event_generator(),
     )
+
+
+# ---
+# Get locations
+# ---
+@router.get("/locations")
+async def get_locations(data_manager: DataManager = Depends(get_data_manager)):
+    return await data_manager.get_all_locations()
+
+
+# ---
+# Logs management
+# ---
 
 
 @router.get("/logs/recent")

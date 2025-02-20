@@ -112,7 +112,7 @@ class Agent:
         start_time = self.last_run
         end_time = start_time + timedelta(hours=self.config.lookforward_period)
 
-        issues = await self.data_manager.get_issues(
+        issues = await self.data_manager.get_issues_for_analysis(
             start_time=start_time, end_time=end_time, max_num_issues=self.batch_size
         )
         issue_tasks = [self._process_issue(issue) for issue in issues]
