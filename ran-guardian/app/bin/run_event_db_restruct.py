@@ -16,8 +16,12 @@ NEW_DB_NAME = "ran-guardian-data-manager"
 
 new_db = firestore.Client(project=PROJECT_ID, database=NEW_DB_NAME)
 
+import logging
 
-def get_all_locations(self):
+logging.basicConfig(level=logging.CRITICAL)
+
+
+def get_all_locations():
     docs = origin_db.collection("locations").stream()
     locations = [doc.id for doc in docs if doc.id != "0_stats"]
     return sorted(locations)
@@ -56,8 +60,8 @@ def delete_all_events_from_new_db(
 
 
 def save_event_to_new_db(event_data: dict, event_id: str):
-    event_ref = new_db.collection("events").document(event_id).get()
-    if event_ref.exists:
+    event_ref = new_db.collection("events").document(event_id)
+    if event_ref.get().exists:
         event_ref.update(event_data)
     else:
         _, doc_ref = new_db.collection("events").add(
