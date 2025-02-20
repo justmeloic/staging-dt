@@ -238,3 +238,9 @@ docker build -t data-gen -f Dockerfile-data-gen .
 docker tag data-gen europe-west3-docker.pkg.dev/de1000-dev-mwc-ran-agent/ran-guardian/data-gen:latest
 docker push europe-west3-docker.pkg.dev/de1000-dev-mwc-ran-agent/ran-guardian/data-gen
 ```
+
+```
+docker build -t agent-viz -f Dockerfile-agent-viz .
+docker tag agent-viz europe-west3-docker.pkg.dev/de1000-dev-mwc-ran-agent/ran-guardian/agent-viz:latest
+docker push europe-west3-docker.pkg.dev/de1000-dev-mwc-ran-agent/ran-guardian/agent-viz
+```
