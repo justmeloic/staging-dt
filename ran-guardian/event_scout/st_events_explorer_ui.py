@@ -79,6 +79,8 @@ with tab1:
   if selected_event_sizes:
       filtered_df = filtered_df[filtered_df['size'].isin(selected_event_sizes)]
 
+  # print(filtered_df.to_string())
+
   size_definitions = """
   **S:** Up to 100 people
 
