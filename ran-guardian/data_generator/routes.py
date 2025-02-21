@@ -209,7 +209,7 @@ async def get_performance(
                         perf.get("4G_ERI_Traffic_Data_Vol_DL_MiB"), mode="float"
                     ),
                     Traffic_Data_Vol_UL_MiB=_shake(
-                        perf.get("4G_ERI_Traffic_Data_Vol_UL_MiB", mode="float")
+                        perf.get("4G_ERI_Traffic_Data_Vol_UL_MiB"), mode="float"
                     ),
                 )
             )

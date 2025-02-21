@@ -60,8 +60,8 @@ def delete_all_events_from_new_db(
 
 
 def save_event_to_new_db(event_data: dict, event_id: str):
-    event_ref = new_db.collection("events").document(event_id)
-    if event_ref.get().exists:
+    event_ref = new_db.collection("events").document(event_id).get()
+    if event_ref.exists:
         event_ref.update(event_data)
     else:
         _, doc_ref = new_db.collection("events").add(
