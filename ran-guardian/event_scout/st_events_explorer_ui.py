@@ -155,7 +155,7 @@ with tab1:
   <div class='legend-scale'>
     <ul class='legend-labels'>
       <li><span style='background:red;opacity:0.7;'></span>Within next 30 days</li>
-      <li><span style='background:orange;opacity:0.7;'></span>Within next 90 days</li>
+      <li><span style='background:blue;opacity:0.7;'></span>Within next 90 days</li>
       <li><span style='background:green;opacity:0.7;'></span>Beyond 90 days</li>
       <li><span style='background:gray;opacity:0.7;'></span>Past events</li>
     </ul>
