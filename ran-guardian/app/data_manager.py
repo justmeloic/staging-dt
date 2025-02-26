@@ -38,6 +38,8 @@ MAX_NUM_EVENTS = int(os.getenv("MAX_NUM_EVENTS", 10))
 MAX_NUM_ISSUES = int(os.getenv("MAX_NUM_ISSUES", 10))
 MAX_NUM_NODE_PER_EVENT = int(os.getenv("MAX_NUM_NODE_PER_EVENT", 10))
 
+# ISSUES_COLLECTION = "issues-dev"
+ISSUES_COLLECTION = "issues"
 
 # utility functions.. TODO: Move to utilities
 def parse_date(date_str: str):
@@ -92,7 +94,7 @@ class DataManager:
     async def get_issues(self, max_num_issues: Optional[int] = None) -> List[Issue]:
         logger.info("[get_issues]: start ...")
         # TODO: need to sort issues by start and end date of event as well as criticality
-        issues_ref = self.manager_db.collection("issues")
+        issues_ref = self.manager_db.collection(ISSUES_COLLECTION)
         issues = []
         for doc in issues_ref.stream():
             issue = Issue.from_firestore_doc(doc)
@@ -113,8 +115,24 @@ class DataManager:
     ) -> List[Issue]:
         """Retrieves all issue data from Firestore and returns a list of Issues."""
         logger.info("[get_issues_for_analysis]: start ...")
-        # TODO: need to sort issues by start and end date of event as well as criticality
-        issues_ref = self.manager_db.collection("issues")
+        issues_ref = self.manager_db.collection(ISSUES_COLLECTION)
+
+        if start_time:
+            start_time_str = start_time.strftime("%Y-%m-%d")
+            issues_ref = issues_ref.where(
+                filter=FieldFilter("start_date", ">=", start_time_str)
+            )
+        if end_time:
+            end_time_str = end_time.strftime("%Y-%m-%d")
+            issues_ref = issues_ref.where(
+                filter=FieldFilter("start_date", "<=", end_time_str)
+            )  # we can only filter on the same field , i.e. start date due to firestore query limits
+        issues_ref = (
+            issues_ref.order_by("start_date")
+            .order_by("end_date")
+            .order_by("event_size", direction=firestore.Query.DESCENDING)
+        )
+
         issues = []
         for doc in issues_ref.stream():
             if not is_out_dated(doc.get("updated_at"), TIME_INTERVAL):
@@ -143,7 +161,7 @@ class DataManager:
     async def get_issue(self, issue_id: str) -> Optional[Issue]:
         """Retrieves issue data from Firestore"""
         logger.info(f"[get_issue]: start ...")
-        issue_ref = self.manager_db.collection("issues").document(issue_id)
+        issue_ref = self.manager_db.collection(ISSUES_COLLECTION).document(issue_id)
         doc = issue_ref.get()
         if not doc or not doc.exists:
             logger.info(f"[get_issue]: finished with issue {issue_id} not found")
@@ -172,7 +190,7 @@ class DataManager:
         issue_id = event.event_id  # using the same id as even
         event.issue_id = issue_id
 
-        issue_ref = self.manager_db.collection("issues").document(issue_id)
+        issue_ref = self.manager_db.collection(ISSUES_COLLECTION).document(issue_id)
         doc = issue_ref.get()
 
         if doc.exists:
@@ -186,6 +204,9 @@ class DataManager:
             issue = Issue(
                 issue_id=issue_id,
                 event_id=event.event_id,
+                start_date=event.start_date,
+                end_date=event.end_date,
+                event_size=event.size,
                 node_ids=[
                     s.node_id for s in event_risk.node_summaries if s.is_problematic
                 ],
@@ -204,7 +225,9 @@ class DataManager:
     async def create_issue_from_model(self, issue: Issue) -> str:
         """Creates an issue in Firestore from an instance of the Issue model"""
         logger.info("[create_issue_from_model]: start ...")
-        issue_ref = self.manager_db.collection("issues").document(issue.issue_id)
+        issue_ref = self.manager_db.collection(ISSUES_COLLECTION).document(
+            issue.issue_id
+        )
         issue_ref.set(issue.model_dump())
         logger.info(
             f"[create_issue_from_model]: finished with issue {issue.issue_id} created from model"
@@ -213,7 +236,7 @@ class DataManager:
 
     async def delete_issue(self, issue_id: str):
         logger.info(f"[delete_issue]: start ...")
-        await self.manager_db.collection("issues").document(
+        await self.manager_db.collection(ISSUES_COLLECTION).document(
             issue_id
         ).delete()  # added await
         logger.info(f"[delete_issue]: finished with issue {issue_id} deleted")
@@ -227,7 +250,7 @@ class DataManager:
 
         logger.info(f"[update_issue]: start ...")
         updates["updated_at"] = datetime.now()
-        issue_ref = self.manager_db.collection("issues").document(issue_id)
+        issue_ref = self.manager_db.collection(ISSUES_COLLECTION).document(issue_id)
         issue_ref.update(updates)
         logger.info(f"[update_issue]: finished with issue {issue_id} updated")
         return True
@@ -236,7 +259,7 @@ class DataManager:
         """Retrieves statistics on the number of issues for each status."""
         logger.info("[get_issue_stats]: start ...")
         stats = {}
-        issues_ref = self.manager_db.collection("issues")
+        issues_ref = self.manager_db.collection(ISSUES_COLLECTION)
         for status in IssueStatus:
             query = issues_ref.where(filter=FieldFilter("status", "==", status.value))
             aggregate_query = aggregation.AggregationQuery(query)
