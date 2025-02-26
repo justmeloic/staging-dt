@@ -107,9 +107,13 @@ async def process_event(
 @router.get("/issues", response_model=List[dict])  # Type hint
 async def get_issues(
     max_num_issues: Optional[int] = None,
+    start_date: Optional[datetime] = None,
+    end_date: Optional[datetime] = None,
     data_manager: DataManager = Depends(get_data_manager),
 ):
-    issues = await data_manager.get_issues(max_num_issues=max_num_issues)
+    issues = await data_manager.get_issues_for_analysis(
+        start_time=start_date, end_time=end_date, max_num_issues=max_num_issues
+    )
     events = []
     for issue in issues:
         event = None

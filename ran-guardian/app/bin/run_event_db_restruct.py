@@ -1,13 +1,12 @@
+import asyncio
 import os
 from datetime import datetime
 from typing import Optional
 
-from app.data_manager import check_date, parse_date
+from app.data_manager import check_date
 from dotenv import load_dotenv
 from event_scout.firestore_helper import db as origin_db
-from event_scout.firestore_helper import get_locations
-from google.cloud import bigquery, firestore
-from tqdm import tqdm
+from google.cloud import firestore
 
 load_dotenv()
 
@@ -69,23 +68,38 @@ def save_event_to_new_db(event_data: dict, event_id: str):
         )
 
 
-def main(start_date: Optional[datetime] = None, end_date: Optional[datetime] = None):
-    # clean up the new db
-    # delete_all_events_from_new_db(start_date, end_date)
-
+async def restructure_event_per_location(location, start_date, end_date):
     n_doc = 0
-    locations = get_all_locations()
-    for location in tqdm(locations):
-        events = origin_db.collection(location).stream()
-        for event_doc in events:
-            event_data = event_doc.to_dict()
-            if check_event(event_doc, start_date, end_date):
-                event_data["location"] = location
-                save_event_to_new_db(event_data, event_doc.id)
-                n_doc += 1
+    events = origin_db.collection(location).stream()
+    for event_doc in events:
+        event_data = event_doc.to_dict()
+        if check_event(event_doc, start_date, end_date):
+            event_data["location"] = location
+            save_event_to_new_db(event_data, event_doc.id)
+            n_doc += 1
+    print(f"finish for location {location}")
+    return n_doc
 
+
+async def main(
+    start_date: Optional[datetime] = None,
+    end_date: Optional[datetime] = None,
+    clean_up: bool = False,
+):
+    # clean up the new db
+    if clean_up:
+        delete_all_events_from_new_db(start_date, end_date)
+
+    locations = get_all_locations()
+    print("start restructure locations...")
+    tasks = [
+        restructure_event_per_location(location, start_date, end_date)
+        for location in locations
+    ]
+    results = await asyncio.gather(*tasks)
+    n_doc = sum(results)
     print(f"saved {n_doc} well formatted events to new db!")
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())

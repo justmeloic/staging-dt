@@ -8,7 +8,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional, Set
 
 import numpy as np
-from app.data_manager import TIME_INTERVAL, DataManager
+from app.data_manager import ISSUES_COLLECTION, TIME_INTERVAL, DataManager
 from app.llm_helper import LLMHelper
 from app.models import (
     Event,
@@ -30,7 +30,7 @@ class AgentConfig:
     lookforward_period: int = 24 * 14  # hours
     monitoring_period: int = 15  # minutes
     concurrency_limit: int = 5  # max. num of reasoning agents to run concurrently
-    batch_size: int = 20
+    batch_size: int = 20  # number of events / issues per cycle
 
 
 class AgentLogger:
@@ -135,7 +135,7 @@ class Agent:
         # If there's already an issue related to the event in the database, skip the event
         if event.issue_id:
             doc = (
-                self.data_manager.manager_db.collection("issues")
+                self.data_manager.manager_db.collection(ISSUES_COLLECTION)
                 .document(event.issue_id)
                 .get()
             )

@@ -82,10 +82,10 @@ class Event(BaseModel):
             )
 
         except (ValueError, TypeError, KeyError) as e:
-            print(e)
-            # print(f"Error converting document {doc_id}: {e}")
-            # print(f"Problematic data: {doc_data}")
-            return None
+            logger.error(
+                f"[Event.from_firestore_doc] Skipp event {doc_id} due to error :{e}"
+            )
+            raise e
 
 
 class NodeData(BaseModel):
@@ -170,7 +170,9 @@ class Issue(BaseModel):
         default_factory=lambda: str(uuid.uuid4())
     )  # maybe we can just use the same id?
     event_id: str
-    # need to add event start and end date to better sort issues
+    start_date: Optional[datetime]
+    end_date: Optional[datetime]
+    event_size: Optional[int]
     event_risk: Optional["EventRisk"] = None
     node_ids: list[str]
     status: IssueStatus = IssueStatus.NEW
