@@ -156,5 +156,27 @@ def get_event_by_location_and_id(location: str, event_id: str) -> dict:
     doc_ref = db.collection(location).document(event_id)
     return doc_ref.get().to_dict()
 
+def delete_events_by_location(location: str) -> int:
+    """Deletes all events for the specified location."""
+    docs = db.collection(location).stream()
+    num_deleted = 0
+    for doc in docs:
+        doc.reference.delete()
+        num_deleted += 1
+
+    # Reset location events stat counter
+    loc_ref_stats = db.collection("locations").document(location)
+    loc_ref_stats.update({
+        "num_events": 0
+    })
+
+    # Decrement total events stat
+    total_ref_stats = db.collection("locations").document("0_stats")
+    total_ref_stats.update({
+        "num_events": firestore.Increment(-1*num_deleted)
+    })
+
+    return num_deleted
+
 # print(get_nodes_within_radius(13.4049, 52.5200, 4000))
 # print(get_event_by_location_and_id("Aach Baden-Württemberg", "0fdGDkY2A34O1PzFJwF2"))

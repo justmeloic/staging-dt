@@ -203,9 +203,10 @@ def verify_event(location: str, event_id: str):
 @app.command()
 def main(priority: Annotated[str, typer.Option(prompt=True, help="Priority of the locations to be scanned (high/medium/low/all)")] = "high",
          days_since_last_scan: Annotated[int, typer.Option(prompt=True, help="Number of days since last scan")] = 30,
+         fresh_scan: Annotated[bool, typer.Option(prompt=True, help="If a location has to be scanned fresh, deleting previous event entries")] = False,
          verify_events: Annotated[bool, typer.Option(help="Verify each event with another LLM call")] = False):
     
-    logger.info(f"Scanning locations with priority {priority} and last scan days {days_since_last_scan} with verify set to {verify_events}")
+    logger.info(f"Scanning locations with priority {priority} and last scan days {days_since_last_scan} with fresh can set to {fresh_scan} and verify set to {verify_events}")
 
     event_types = firestore_helper.get_all_event_types()
     logger.info(f"Total Event types: {len(event_types)}")
@@ -218,11 +219,16 @@ def main(priority: Annotated[str, typer.Option(prompt=True, help="Priority of th
             pbar.set_description(f"Scouting: {event_location}")
             logger.info(f"Scouting: {event_location}")
 
+            if(fresh_scan):
+                num_deleted = firestore_helper.delete_events_by_location(event_location)
+                logger.info(f"Cleared {num_deleted} events for Locations: {event_location}")
+
             events = discover_events_multithreaded(event_location, event_types)
             write_events_to_db(event_location, events)
 
-            # Dedup events after writing to database
-            dedup_events_per_location(event_location)
+            if not fresh_scan:
+                # Dedup events after writing to database
+                dedup_events_per_location(event_location)
 
             pbar.update(1)  # Increment the progress bar by 1 for each location
             pbar.set_postfix({"Location": event_location})
