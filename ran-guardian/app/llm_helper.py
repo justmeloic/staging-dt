@@ -19,7 +19,7 @@ from app.models import (
 from app.prompts import assess_event_risk, assess_node_risk, recommend_network_config
 from dotenv import load_dotenv
 from google import genai
-from google.api_core import exceptions, retry
+from google.api_core import exceptions, retry, retry_async
 from google.genai import types
 from pydantic import BaseModel
 
@@ -93,9 +93,9 @@ class LLMHelper:
                 description=msg,
             )
 
-    @retry.Retry(
-        predicate=retry.if_transient_error,
-        initial=2.0,
+    @retry_async.AsyncRetry(
+        predicate=retry_async.if_transient_error,
+        initial=8.0,
         maximum=64.0,
         multiplier=2.0,
         timeout=600,
@@ -103,7 +103,7 @@ class LLMHelper:
     async def assess_node_risk(self, node_summary: NodeSummary) -> NodeSummary:
         try:
             response = self.client.models.generate_content(
-                model=self.model_id,
+                model="gemini-1.5-flash",
                 config=types.GenerateContentConfig(
                     system_instruction=assess_node_risk.prompt,
                     temperature=0.3,
@@ -130,9 +130,9 @@ class LLMHelper:
             node_summary.summary = msg
             return node_summary
 
-    @retry.Retry(
-        predicate=retry.if_transient_error,
-        initial=2.0,
+    @retry_async.AsyncRetry(
+        predicate=retry_async.if_transient_error,
+        initial=8.0,
         maximum=64.0,
         multiplier=2.0,
         timeout=600,

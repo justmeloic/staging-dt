@@ -16,7 +16,7 @@ from langgraph.graph import END, MessageGraph
 from langgraph.prebuilt import ToolNode
 from langgraph.store.memory import InMemoryStore
 from llm.prompt_manager import PromptManager
-from llm.tools import run_node_command
+from llm.tools import run_node_command, wait_sometime
 from llm.utils import strip_markdown
 
 prompt_manager = PromptManager()
@@ -69,8 +69,16 @@ class TaskAgent:
                 run_node_command,
             ]
         )
+
+        dummy_wait_node = ToolNode(
+            [
+                wait_sometime,
+            ]
+        )
         builder.add_node("tools", tool_node)
-        builder.add_conditional_edges("agent", self._router)
+        builder.add_node("wait", dummy_wait_node)
+        builder.add_edge("agent", "wait")
+        builder.add_conditional_edges("wait", self._router)
         builder.add_edge("tools", "agent")
         builder.add_edge("tools", END)
 

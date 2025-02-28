@@ -38,8 +38,9 @@ MAX_NUM_EVENTS = int(os.getenv("MAX_NUM_EVENTS", 10))
 MAX_NUM_ISSUES = int(os.getenv("MAX_NUM_ISSUES", 10))
 MAX_NUM_NODE_PER_EVENT = int(os.getenv("MAX_NUM_NODE_PER_EVENT", 10))
 
-# ISSUES_COLLECTION = "issues-dev"
-ISSUES_COLLECTION = "issues"
+ISSUES_COLLECTION = "issues-dev"
+EVENTS_COLLECTION = "events-dev"
+# ISSUES_COLLECTION = "issues"
 
 # utility functions.. TODO: Move to utilities
 def parse_date(date_str: str):
@@ -48,6 +49,11 @@ def parse_date(date_str: str):
         return date_object
     except Exception as e:
         return None
+
+
+def convert_size_into_number(size_str):
+    size_dict = {"S": 1, "M": 2, "L": 3, "XL": 4}
+    return size_dict.get(size_str.upper().strip(), 0)
 
 
 def check_date(
@@ -112,6 +118,7 @@ class DataManager:
         start_time: Optional[datetime] = None,
         end_time: Optional[datetime] = None,
         max_num_issues: Optional[int] = None,
+        skip_newly_updated=False,
     ) -> List[Issue]:
         """Retrieves all issue data from Firestore and returns a list of Issues."""
         logger.info("[get_issues_for_analysis]: start ...")
@@ -135,7 +142,16 @@ class DataManager:
 
         issues = []
         for doc in issues_ref.stream():
-            if not is_out_dated(doc.get("updated_at"), TIME_INTERVAL):
+            time_updated = (
+                doc.get("updated_at")
+                if doc.get("updated_at")
+                else doc.get("created_at")
+            )
+            if (
+                time_updated
+                and not is_out_dated(time_updated, TIME_INTERVAL)
+                and skip_newly_updated
+            ):
                 # skip the issues which have just been evalutate
                 continue
             issue = Issue.from_firestore_doc(doc)
@@ -184,7 +200,6 @@ class DataManager:
         recommendation: Optional[str] = None,
     ) -> str:
         # this function is probably not working well
-        # TODO: the logic needs to be moved to agent, not data manager!!!
         """Creates a new issue in Firestore with data provided in the dictionary. Returns issue_id."""
         logger.info(f"[create_issue]: start ...")
         issue_id = event.event_id  # using the same id as even
@@ -215,9 +230,14 @@ class DataManager:
                 recommendation=recommendation or "",
                 status=IssueStatus.NEW,
                 created_at=now_time,
-                updated_at=now_time,
+                updated_at=None,
             )
-            issue_ref.set(issue.model_dump())
+            issue_data = issue.model_dump()
+            issue_data["start_date"] = event.start_date.strftime("%Y-%m-%d")
+            issue_data["end_date"] = event.end_date.strftime("%Y-%m-%d")
+            issue_data["event_size"] = convert_size_into_number(event.size)
+
+            issue_ref.set(issue_data)
             logger.info(f"[create_issue]: finished with issue {issue_id} created")
 
         return issue_ref.id
@@ -335,7 +355,7 @@ class DataManager:
         max_num_event: Optional[int] = None,
     ):
         logger.info("[get_events]: start ...")
-        event_collection = self.manager_db.collection("events")
+        event_collection = self.manager_db.collection(EVENTS_COLLECTION)
         if start_time:
             start_time_str = start_time.strftime("%Y-%m-%d")
             event_collection = event_collection.where(
@@ -365,7 +385,7 @@ class DataManager:
 
     async def get_event(self, event_id: str) -> Optional[Event]:
         logger.info(f"[get_event]: start ...")
-        event_ref = self.manager_db.collection("events").document(event_id)
+        event_ref = self.manager_db.collection(EVENTS_COLLECTION).document(event_id)
         doc = event_ref.get()
         if doc.exists:
             event = Event.from_firestore_doc(doc.id, doc.to_dict())
@@ -376,7 +396,7 @@ class DataManager:
 
     async def update_event(self, event_id: str, updates: Dict) -> bool:
         logger.info(f"[update_event]: start ...")
-        event_ref = self.manager_db.collection("events").document(event_id)
+        event_ref = self.manager_db.collection(EVENTS_COLLECTION).document(event_id)
         event_ref.update(updates)
         logger.info(f"[update_event]: finished with event {event_id} updated")
         return True
@@ -385,7 +405,7 @@ class DataManager:
         # TODO: rewrite logic to fully match the life-cycle of events and issues
         logger.info("[get_events_stats]: start ...")
         stats = {}
-        events_ref = self.manager_db.collection("events")
+        events_ref = self.manager_db.collection(EVENTS_COLLECTION)
         event_count = 0
         for doc in events_ref.stream():  # Stream for potentially large datasets
             event_type = doc.to_dict().get("status", "new")

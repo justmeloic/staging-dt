@@ -1,5 +1,6 @@
 import os
 
+from app.data_manager import EVENTS_COLLECTION, convert_size_into_number
 from dotenv import load_dotenv
 from google.cloud import firestore
 from tqdm import tqdm
@@ -22,15 +23,10 @@ def check_issue(issue_data):
     return result
 
 
-def convert_size_into_number(size_str):
-    size_dict = {"S": 1, "M": 2, "L": 3, "XL": 4}
-    return size_dict.get(size_str.upper().strip(), 0)
-
-
 def add_dates_to_issue(issue):
     issue_data = issue.to_dict()
     if not check_issue(issue_data):
-        event = db.collection("events").document(issue_data["event_id"]).get()
+        event = db.collection(EVENTS_COLLECTION).document(issue_data["event_id"]).get()
         if event.exists:
             update_dict = {}
             event_data = event.to_dict()
