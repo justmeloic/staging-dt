@@ -219,9 +219,6 @@ class DataManager:
             issue = Issue(
                 issue_id=issue_id,
                 event_id=event.event_id,
-                start_date=event.start_date,
-                end_date=event.end_date,
-                event_size=event.size,
                 node_ids=[
                     s.node_id for s in event_risk.node_summaries if s.is_problematic
                 ],

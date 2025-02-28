@@ -81,10 +81,11 @@ class Agent:
 
     async def _run(self):
         """Internal method to run periodic tasks"""
-        while True:
+        day_incremental = 0
+        while True and day_incremental <= 30:
             try:
                 logger.info("[_run]: start process cycle ...")
-                self.last_run = datetime.now() - timedelta(hours=24 * 7)
+                self.last_run = datetime.now() + timedelta(hours=24 * day_incremental)
                 await self._process_event_cycle()
                 await self.data_manager.sort_issues()
                 await self._process_issue_cycle()
@@ -92,6 +93,7 @@ class Agent:
             except Exception as e:
                 logger.error(f"Exiting current run cycle due to: {e}")
             await asyncio.sleep(self.config.run_interval * 60)
+            day_incremental += 1
 
     async def _process_event_cycle(self):
         """Run a single processing cycle"""
