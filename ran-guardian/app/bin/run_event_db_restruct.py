@@ -3,7 +3,7 @@ import os
 from datetime import datetime
 from typing import Optional
 
-from app.data_manager import check_date
+from app.data_manager import EVENTS_COLLECTION, check_date
 from dotenv import load_dotenv
 from event_scout.firestore_helper import db as origin_db
 from google.cloud import firestore
@@ -42,28 +42,12 @@ def check_event(
     return res
 
 
-def delete_all_events_from_new_db(
-    start_date: Optional[datetime] = None, end_date: Optional[datetime] = None
-):
-    collection_ref = new_db.collection("events")
-    if start_date:
-        collection_ref = collection_ref.where("start_date", ">=", start_date)
-    if end_date:
-        collection_ref = collection_ref.where("end_date", "<=", end_date)
-
-    n_docs = 0
-    for doc in collection_ref.stream():
-        doc.reference.delete()
-        n_docs += 1
-    print(f"deleted {n_docs} events from new events db")
-
-
 def save_event_to_new_db(event_data: dict, event_id: str):
-    event_ref = new_db.collection("events").document(event_id).get()
+    event_ref = new_db.collection(EVENTS_COLLECTION).document(event_id).get()
     if event_ref.exists:
         event_ref.update(event_data)
     else:
-        _, doc_ref = new_db.collection("events").add(
+        _, doc_ref = new_db.collection(EVENTS_COLLECTION).add(
             document_data=event_data, document_id=event_id
         )
 
@@ -71,25 +55,21 @@ def save_event_to_new_db(event_data: dict, event_id: str):
 async def restructure_event_per_location(location, start_date, end_date):
     n_doc = 0
     events = origin_db.collection(location).stream()
+    print(f"[Start] for location {location}...")
     for event_doc in events:
         event_data = event_doc.to_dict()
         if check_event(event_doc, start_date, end_date):
             event_data["location"] = location
             save_event_to_new_db(event_data, event_doc.id)
             n_doc += 1
-    print(f"finish for location {location}")
+    print(f"[Finish] .. for location {location}")
     return n_doc
 
 
 async def main(
     start_date: Optional[datetime] = None,
     end_date: Optional[datetime] = None,
-    clean_up: bool = False,
 ):
-    # clean up the new db
-    if clean_up:
-        delete_all_events_from_new_db(start_date, end_date)
-
     locations = get_all_locations()
     print("start restructure locations...")
     tasks = [
@@ -102,4 +82,9 @@ async def main(
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    asyncio.run(
+        main(
+            start_date=datetime.strptime("2025-02-15", "%Y-%m-%d").date(),
+            end_date=datetime.strptime("2025-08-15", "%Y-%m-%d").date(),
+        )
+    )

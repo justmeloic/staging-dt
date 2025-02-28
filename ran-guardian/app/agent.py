@@ -8,7 +8,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional, Set
 
 import numpy as np
-from app.data_manager import ISSUES_COLLECTION, TIME_INTERVAL, DataManager
+from app.data_manager import ISSUES_COLLECTION, TIME_INTERVAL, DataManager, is_out_dated
 from app.llm_helper import LLMHelper
 from app.models import (
     Event,
@@ -26,11 +26,11 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class AgentConfig:
-    run_interval: int = 5  # minutes
-    lookforward_period: int = 24 * 14  # hours
+    run_interval: int = 0.1  # minutes
+    lookforward_period: int = 24 * 90  # hours
     monitoring_period: int = 15  # minutes
-    concurrency_limit: int = 5  # max. num of reasoning agents to run concurrently
-    batch_size: int = 20  # number of events / issues per cycle
+    concurrency_limit: int = 2  # max. num of reasoning agents to run concurrently
+    batch_size: int = 10  # number of events / issues per cycle
 
 
 class AgentLogger:
@@ -84,7 +84,7 @@ class Agent:
         while True:
             try:
                 logger.info("[_run]: start process cycle ...")
-                self.last_run = datetime.now()
+                self.last_run = datetime.now() - timedelta(hours=24 * 7)
                 await self._process_event_cycle()
                 await self.data_manager.sort_issues()
                 await self._process_issue_cycle()
@@ -113,7 +113,10 @@ class Agent:
         end_time = start_time + timedelta(hours=self.config.lookforward_period)
 
         issues = await self.data_manager.get_issues_for_analysis(
-            start_time=start_time, end_time=end_time, max_num_issues=self.batch_size
+            start_time=start_time,
+            end_time=end_time,
+            max_num_issues=self.batch_size,
+            skip_newly_updated=True,
         )
         issue_tasks = [self._process_issue(issue) for issue in issues]
         await asyncio.gather(*issue_tasks)  # added await here
@@ -143,41 +146,46 @@ class Agent:
                 return True
         return False
 
-    async def _process_event(self, event: Event):
+    async def _process_event(self, event: Event) -> Issue | None:
         """Processes a single event and creates an issue if necessary."""
-        logger.info(f"[_process_event]: start with event {event.event_id}...")
-        if not await self.data_manager.get_event(event.event_id):
-            logger.info(
-                f"[_process_event]: finished with event {event.event_id} not found in data manager's event collection"
-            )
-            return
-        else:
-            # when to skip event...
-            if await self._event_has_wip_issue(event):
+        async with self.agent_semaphore:
+            logger.info(f"[_process_event]: start with event {event.event_id}...")
+            if not await self.data_manager.get_event(event.event_id):
                 logger.info(
-                    f"[_process_event]: finished with event {event.event_id} already has WIP issue, skipped"
+                    f"[_process_event]: finished with event {event.event_id} not found in data manager's event collection"
                 )
                 return
-
-            event_risk = await self._evaluate_event_risk(event=event)
-
-            if event_risk.risk_level != RiskLevel.LOW:
-                recommendation = await self._create_recommendation(
-                    event=event, event_risk=event_risk
-                )
-                issue_id = await self._create_issue(event, event_risk, recommendation)
-                await self.data_manager.update_event(
-                    event.event_id,
-                    {"issue_id": issue_id, "processed_at": datetime.now()},
-                )
-                logger.info(
-                    f"[_process_event]: finished with issue {issue_id} created for event {event.event_id}"
-                )
             else:
-                logger.info(
-                    f"[_process_event]: finished with event {event.event_id} is low risk, no issue created"
-                )
-                pass
+                # when to skip event...
+                if await self._event_has_wip_issue(event):
+                    logger.info(
+                        f"[_process_event]: finished with event {event.event_id} already has WIP issue, skipped"
+                    )
+                    return
+
+                event_risk = await self._evaluate_event_risk(event=event)
+
+                if event_risk.risk_level != RiskLevel.LOW:
+                    recommendation = await self._create_recommendation(
+                        event=event, event_risk=event_risk
+                    )
+                    issue_id = await self._create_issue(
+                        event, event_risk, recommendation
+                    )
+                    await self.data_manager.update_event(
+                        event.event_id,
+                        {"issue_id": issue_id, "processed_at": datetime.now()},
+                    )
+                    logger.info(
+                        f"[_process_event]: finished with issue {issue_id} created for event {event.event_id}"
+                    )
+                    issue = await self.data_manager.get_issue(issue_id)
+                    return issue
+                else:
+                    logger.info(
+                        f"[_process_event]: finished with event {event.event_id} is low risk, no issue created"
+                    )
+                    pass
 
     async def _evaluate_event_risk(self, event: Event) -> EventRisk:
         """
@@ -235,15 +243,9 @@ class Agent:
 
     def _issue_needs_eval(self, issue: Issue):
         # TODO: review logic!
-        if issue.updated_at.tzinfo:
-            time_threshold = datetime.now(timezone.utc) - timedelta(
-                minutes=TIME_INTERVAL
-            )
-        else:
-            time_threshold = datetime.now() - timedelta(minutes=TIME_INTERVAL)
-
+        time_updated = issue.updated_at if issue.updated_at else issue.created_at
         return (
-            issue.updated_at < time_threshold
+            is_out_dated(time_updated, time_interval=TIME_INTERVAL)
             or (issue.event_risk is None)
             or (issue.node_ids is None)
         )

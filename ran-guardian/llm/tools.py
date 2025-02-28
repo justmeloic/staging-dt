@@ -1,7 +1,8 @@
 import random
+import time
+
 from langchain_core.tools import tool
 from llm.utils import update_issue_status, update_issue_status_and_summary
-
 
 ### Tools ###
 
@@ -96,3 +97,10 @@ def run_node_command(command: str, node_id: str) -> str:
     """Runs a command against a node"""
     print(f"Running command on {node_id}", command)
     return "Dummy output"
+
+
+@tool
+def wait_sometime() -> None:
+    """wait for sometime to avoid 429"""
+    # TODO: To remove it when capacity is up!!!
+    time.sleep(6)

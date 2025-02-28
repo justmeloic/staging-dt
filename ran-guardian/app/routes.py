@@ -72,7 +72,7 @@ async def start_agent(request: Request):
 
     agent = request.app.state.agent
     await agent.run_once()
-    return {"status": "Agent stopped"}
+    return {"status": "Agent finshed one batch"}
 
 
 # ---
@@ -80,7 +80,7 @@ async def start_agent(request: Request):
 # ---
 
 
-@router.put("/events/process/{event_id}")
+@router.put("/process_event/{event_id}")
 async def process_event(
     event_id: str,
     request: Request,
@@ -100,6 +100,20 @@ async def process_event(
     return
 
 
+@router.put("/process_events")
+async def process_events(
+    request: Request,
+):
+    """Get summary statistics of issues"""
+    """Process the issues cycle"""
+    if not hasattr(request.app.state, "agent"):
+        raise HTTPException(status_code=503, detail="Agent not initialized")
+    agent = request.app.state.agent
+    await agent._process_event_cycle()
+
+    return
+
+
 # ---
 # Issue management
 # ---
@@ -112,7 +126,10 @@ async def get_issues(
     data_manager: DataManager = Depends(get_data_manager),
 ):
     issues = await data_manager.get_issues_for_analysis(
-        start_time=start_date, end_time=end_date, max_num_issues=max_num_issues
+        start_time=start_date,
+        end_time=end_date,
+        max_num_issues=max_num_issues,
+        skip_newly_updated=False,
     )
     events = []
     for issue in issues:
@@ -189,8 +206,7 @@ async def process_issue(
 async def process_all_issues(
     request: Request,
 ):
-    """Get summary statistics of issues"""
-    logger.info("lululalallulu")
+    """Process the issues cycle"""
     if not hasattr(request.app.state, "agent"):
         raise HTTPException(status_code=503, detail="Agent not initialized")
     agent = request.app.state.agent
