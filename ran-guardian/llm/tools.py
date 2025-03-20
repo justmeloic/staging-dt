@@ -103,4 +103,4 @@ def run_node_command(command: str, node_id: str) -> str:
 def wait_sometime() -> None:
     """wait for sometime to avoid 429"""
     # TODO: To remove it when capacity is up!!!
-    time.sleep(6)
+    time.sleep(8)

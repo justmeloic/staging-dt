@@ -118,7 +118,6 @@ class Agent:
             start_time=start_time,
             end_time=end_time,
             max_num_issues=self.batch_size,
-            skip_newly_updated=True,
         )
         issue_tasks = [self._process_issue(issue) for issue in issues]
         await asyncio.gather(*issue_tasks)  # added await here
