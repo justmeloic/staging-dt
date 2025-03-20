@@ -2,7 +2,7 @@ import asyncio
 import json
 import logging
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Dict, List, Optional
 
 from app.agent import Agent
@@ -72,7 +72,7 @@ async def start_agent(request: Request):
 
     agent = request.app.state.agent
     await agent.run_once()
-    return {"status": "Agent finshed one batch"}
+    return {"status": "Agent is running one batch"}
 
 
 # ---
@@ -125,11 +125,10 @@ async def get_issues(
     end_date: Optional[datetime] = None,
     data_manager: DataManager = Depends(get_data_manager),
 ):
-    issues = await data_manager.get_issues_for_analysis(
+    issues = await data_manager.get_issues(
         start_time=start_date,
         end_time=end_date,
         max_num_issues=max_num_issues,
-        skip_newly_updated=False,
     )
     events = []
     for issue in issues:
@@ -200,6 +199,29 @@ async def process_issue(
     await agent._process_issue(issue)
 
     return
+
+
+@router.get("/get_issues_for_analysis")
+async def get_issues_for_analysis(
+    request: Request,
+    data_manager: DataManager = Depends(get_data_manager),
+):
+    """Process the issues cycle"""
+    if not hasattr(request.app.state, "agent"):
+        raise HTTPException(status_code=503, detail="Agent not initialized")
+    agent = request.app.state.agent
+    start_time = agent.last_run
+    end_time = start_time + timedelta(hours=agent.config.lookforward_period)
+    logger.info(
+        f"look for issue between {start_time} and {end_time}, with batch size {agent.batch_size}"
+    )
+    issues = await data_manager.get_issues_for_analysis(
+        start_time=start_time,
+        end_time=end_time,
+        max_num_issues=agent.batch_size,
+    )
+
+    return {"number_issues": len(issues), "issues": issues}
 
 
 @router.get("/process_issues")

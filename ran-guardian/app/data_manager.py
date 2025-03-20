@@ -42,6 +42,7 @@ ISSUES_COLLECTION = "issues-dev"
 EVENTS_COLLECTION = "events-dev"
 # ISSUES_COLLECTION = "issues"
 
+
 # utility functions.. TODO: Move to utilities
 def parse_date(date_str: str):
     try:
@@ -97,10 +98,14 @@ class DataManager:
     # Issue management
     # -------------------
 
-    async def get_issues(self, max_num_issues: Optional[int] = None) -> List[Issue]:
+    async def get_issues(
+        self,
+        start_time: Optional[datetime] = None,
+        end_time: Optional[datetime] = None,
+        max_num_issues: Optional[int] = None,
+    ) -> List[Issue]:
         logger.info("[get_issues]: start ...")
-        # TODO: need to sort issues by start and end date of event as well as criticality
-        issues_ref = self.manager_db.collection(ISSUES_COLLECTION)
+        issues_ref = self._filter_issues_on_dates(start_time, end_time)
         issues = []
         for doc in issues_ref.stream():
             issue = Issue.from_firestore_doc(doc)
@@ -113,15 +118,7 @@ class DataManager:
         )
         return issues
 
-    async def get_issues_for_analysis(
-        self,
-        start_time: Optional[datetime] = None,
-        end_time: Optional[datetime] = None,
-        max_num_issues: Optional[int] = None,
-        skip_newly_updated=False,
-    ) -> List[Issue]:
-        """Retrieves all issue data from Firestore and returns a list of Issues."""
-        logger.info("[get_issues_for_analysis]: start ...")
+    def _filter_issues_on_dates(self, start_time: datetime, end_time: datetime):
         issues_ref = self.manager_db.collection(ISSUES_COLLECTION)
 
         if start_time:
@@ -139,25 +136,34 @@ class DataManager:
             .order_by("end_date")
             .order_by("event_size", direction=firestore.Query.DESCENDING)
         )
+        return issues_ref
+
+    async def get_issues_for_analysis(
+        self,
+        start_time: Optional[datetime] = None,
+        end_time: Optional[datetime] = None,
+        max_num_issues: Optional[int] = None,
+    ) -> List[Issue]:
+        """Retrieves all issue data from Firestore and returns a list of Issues."""
+        logger.info("[get_issues_for_analysis]: start ...")
+        issues_ref = self._filter_issues_on_dates(start_time, end_time)
 
         issues = []
+        non_active_status = [
+            IssueStatus.PENDING_APPROVAL,
+            IssueStatus.ESCALATE,
+            IssueStatus.RESOLVED,
+        ]
         for doc in issues_ref.stream():
-            time_updated = (
-                doc.get("updated_at")
-                if doc.get("updated_at")
-                else doc.get("created_at")
-            )
-            if (
-                time_updated
-                and not is_out_dated(time_updated, TIME_INTERVAL)
-                and skip_newly_updated
-            ):
+            if doc.get("status") in non_active_status:
+                continue
+            time_updated = doc.get("updated_at")
+            if time_updated and not is_out_dated(time_updated, TIME_INTERVAL):
                 # skip the issues which have just been evalutate
                 continue
             issue = Issue.from_firestore_doc(doc)
             if issue:
                 issues.append(issue)
-                # TODO: remove the hack to limit max num issues
             if max_num_issues and len(issues) >= max_num_issues:
                 break
         logger.info(
